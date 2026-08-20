@@ -1,14 +1,46 @@
 # FamilyFlix
 
-FamilyFlix est une application de vidéothèque privée pensée pour une famille. Elle permet de savoir quels films et séries sont disponibles à la maison, sur quel support ils se trouvent et à qui ils appartiennent, tout en donnant aux membres un espace commun pour proposer et noter des contenus.
+> **Toute la vidéothèque de la famille, au même endroit.**
+>
+> Savoir ce que l’on possède, choisir quoi regarder et le faire ensemble.
 
-Le projet poursuit une contrainte simple : rester utilisable sans abonnement ni infrastructure payante obligatoire.
+[![Flutter](https://img.shields.io/badge/Flutter-Web%20%26%20Android-02569B?logo=flutter)](https://flutter.dev/)
+[![Supabase](https://img.shields.io/badge/Supabase-Données%20privées-3FCF8E?logo=supabase)](https://supabase.com/)
+[![TMDB](https://img.shields.io/badge/TMDB-Films%20%26%20séries-01B4E4)](https://www.themoviedb.org/)
+[![Coût](https://img.shields.io/badge/Objectif-0%20€-E84E2C)](#une-contrainte-fondatrice--0-€)
+
+FamilyFlix est une vidéothèque privée conçue pour une famille. Elle rassemble les films et séries disponibles à la maison, indique où ils se trouvent et à qui ils appartiennent, puis aide tout le monde à choisir le prochain programme.
 
 ## Le concept
 
-Une famille crée son espace FamilyFlix, puis invite ses membres par e-mail ou avec un numéro de famille protégé par mot de passe. Chacun peut consulter la collection commune, enregistrer ses propres exemplaires et participer au choix du prochain film.
+| 01 — Rassembler | 02 — Partager | 03 — Choisir |
+|---|---|---|
+| Réunir DVD, Blu-ray, NAS, box et supports numériques dans une collection commune. | Permettre à chaque membre d’ajouter ses exemplaires, ses souhaits, ses avis et ses recommandations. | Utiliser les informations TMDB et les filtres FamilyFlix pour trouver rapidement le bon film ou la bonne série. |
+
+```text
+Un membre ajoute un film ou une série
+                    ↓
+       TMDB complète automatiquement la fiche
+                    ↓
+ FamilyFlix enregistre le propriétaire et le support
+                    ↓
+ Toute la famille peut chercher, proposer et choisir
+```
+
+Une famille crée son espace privé, puis invite ses membres par e-mail ou avec un numéro de famille protégé par mot de passe. Chacun consulte la collection commune tout en conservant l’identité de ses propres exemplaires.
 
 Les informations cinématographiques sont récupérées depuis TMDB. Les informations privées — propriétaires, supports, souhaits et avis — restent enregistrées dans la base Supabase de la famille.
+
+## Une contrainte fondatrice : 0 €
+
+FamilyFlix est né comme un projet familial sans budget. Il privilégie donc les technologies gratuites et ouvertes, sans abonnement pour les membres et sans publicité dans l’application.
+
+| Engagement | Ce que cela signifie |
+|---|---|
+| **Sans abonnement** | Aucun paiement demandé aux membres de la famille. |
+| **Sans publicité** | L’interface reste centrée sur la collection et les échanges familiaux. |
+| **Données privées** | Les données personnelles et familiales sont protégées par les règles d’accès Supabase. |
+| **Projet ouvert** | Le code et l’évolution du concept sont visibles dans ce dépôt GitHub. |
 
 ## Fonctionnalités
 

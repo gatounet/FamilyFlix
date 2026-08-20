@@ -1,27 +1,84 @@
 # FamilyFlix
 
-FamilyFlix est une vidéothèque familiale privée conçue pour fonctionner sans abonnement.
+FamilyFlix est une application de vidéothèque privée pensée pour une famille. Elle permet de savoir quels films sont disponibles à la maison, sur quel support ils se trouvent et à qui ils appartiennent, tout en donnant aux membres un espace commun pour proposer et noter des films.
 
-## Plateformes
+Le projet poursuit une contrainte simple : rester utilisable sans abonnement ni infrastructure payante obligatoire.
 
-- Android
-- Web
+## Le concept
 
-Le même code Flutter alimente les deux versions.
+Une famille crée son espace FamilyFlix, puis invite ses membres par e-mail ou avec un numéro de famille protégé par mot de passe. Chacun peut consulter la collection commune, enregistrer ses propres exemplaires et participer au choix du prochain film.
 
-## Lancer l’application
+Les informations cinématographiques sont récupérées depuis TMDB. Les informations privées — propriétaires, supports, souhaits et avis — restent enregistrées dans la base Supabase de la famille.
 
-Le projet est déjà relié à l’instance Supabase **FamilyFlix** avec sa clé
-publiable. Cette clé identifie l’application, mais n’accorde aucun accès secret :
-les données restent protégées par l’authentification et les politiques RLS.
+## Fonctionnalités
 
-Lancer l’application :
+### Comptes et familles
 
-```sh
-flutter run -d chrome
+- création de compte et connexion sécurisée avec Supabase Auth ;
+- création ou participation à une famille ;
+- invitation par e-mail ;
+- accès par numéro de famille et mot de passe ;
+- rôles de créateur, administrateur et membre ;
+- promotion, rétrogradation et exclusion des membres par le créateur ;
+- avatar familial évoluant avec la taille de la collection.
+
+### Vidéothèque
+
+- recherche de films sur TMDB ;
+- ajout d’un exemplaire physique ou numérique ;
+- gestion des supports communs : DVD, Blu-ray, Blu-ray 4K, NAS, box, disque dur, étagère, etc. ;
+- indication du propriétaire et de l’emplacement ;
+- suppression d’un exemplaire sans supprimer les autres données du film ;
+- filtres par support, genre et âge conseillé ;
+- classement par ajout récent, titre, année ou classification d’âge.
+
+### Découverte et participation
+
+- liste de souhaits pour proposer un film qui n’est pas encore possédé ;
+- notes, commentaires et coups de cœur ;
+- fiche détaillée avec synopsis, affiche, durée, genres et classification ;
+- distribution et fiches des acteurs ;
+- bandes-annonces, teasers et vidéos disponibles sur YouTube ou Vimeo.
+
+## Architecture
+
+| Élément | Technologie | Rôle |
+|---|---|---|
+| Application | Flutter / Dart | Interface Android et Web |
+| Authentification | Supabase Auth | Comptes et sessions |
+| Base de données | Supabase Postgres | Familles, films, supports, souhaits et avis |
+| Sécurité | Row Level Security | Isolation des données entre les familles |
+| Métadonnées | TMDB API | Films, casting, classifications et vidéos |
+| Accès à TMDB | Supabase Edge Functions | Protection du jeton TMDB |
+
+```text
+Application Flutter
+       │
+       ├── Supabase Auth ── comptes et sessions
+       ├── Postgres + RLS ── données privées de la famille
+       └── Edge Functions ── TMDB
+                                ├── recherche de films
+                                ├── détails et vidéos
+                                └── fiches des acteurs
 ```
 
-La configuration peut être remplacée localement si nécessaire :
+## Prérequis
+
+- Flutter compatible avec Dart 3.12 ou supérieur ;
+- un projet Supabase ;
+- un compte développeur TMDB et un jeton d’accès en lecture.
+
+## Installation locale
+
+Clonez le dépôt et installez les dépendances :
+
+```sh
+git clone https://github.com/gatounet/FamilyFlix.git
+cd FamilyFlix
+flutter pub get
+```
+
+Lancez l’application Web :
 
 ```sh
 flutter run -d chrome \
@@ -29,15 +86,33 @@ flutter run -d chrome \
   --dart-define=SUPABASE_PUBLISHABLE_KEY=votre-cle-publiable
 ```
 
-Ne placez jamais une clé `service_role` ou une clé secrète dans l’application.
+Pour Android, remplacez `chrome` par l’identifiant de l’émulateur ou de l’appareil retourné par `flutter devices`.
 
-## Fonctionnalités disponibles
+Une clé publiable Supabase peut être utilisée dans l’application cliente. N’intégrez jamais une clé secrète ou `service_role` dans Flutter.
 
-- création d’un compte par e-mail et mot de passe ;
-- confirmation de l’adresse par e-mail selon la configuration Supabase ;
-- connexion et persistance sécurisée de la session ;
-- déconnexion ;
-- écran d’accueil responsive Android/Web.
+## Configuration de Supabase
+
+Reliez le projet local à votre projet Supabase, puis appliquez les migrations présentes dans `supabase/migrations` :
+
+```sh
+supabase login
+supabase link --project-ref votre-reference-projet
+supabase db push
+```
+
+Enregistrez le jeton TMDB comme secret côté Supabase :
+
+```sh
+supabase secrets set TMDB_READ_TOKEN=votre-jeton-tmdb
+```
+
+Déployez ensuite les fonctions :
+
+```sh
+supabase functions deploy tmdb-search
+supabase functions deploy tmdb-details
+supabase functions deploy tmdb-person
+```
 
 ## Vérifications
 
@@ -46,3 +121,23 @@ flutter analyze
 flutter test
 flutter build web
 ```
+
+## Confidentialité et coût
+
+FamilyFlix ne nécessite pas de serveur applicatif dédié. Le projet peut fonctionner dans les limites des offres gratuites de Supabase et TMDB, sous réserve de leurs conditions et quotas respectifs. Les politiques RLS empêchent un utilisateur authentifié de consulter une autre famille.
+
+Le jeton TMDB est uniquement utilisé par les Edge Functions et n’est jamais envoyé à l’application Flutter.
+
+## Attribution TMDB
+
+Ce produit utilise l’API TMDB mais n’est ni approuvé ni certifié par TMDB.
+
+Les affiches, biographies, synopsis et autres métadonnées restent la propriété de leurs ayants droit respectifs.
+
+## État du projet
+
+FamilyFlix est un projet familial en développement actif. Les prochaines étapes pourront notamment concerner les notifications, l’amélioration du mode hors ligne, les sauvegardes et la publication simplifiée des applications Android et Web.
+
+## Licence
+
+Consultez le fichier [LICENSE](LICENSE) du dépôt.

@@ -1,4 +1,12 @@
+import 'dart:convert';
+
+import 'package:file_saver/file_saver.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
+import 'package:printing/printing.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -6,6 +14,12 @@ const paper = Color(0xFFF3F0E8);
 const ink = Color(0xFF171715);
 const accent = Color(0xFFE84E2C);
 bool supabaseReady = false;
+final themeMode = ValueNotifier<ThemeMode>(ThemeMode.system);
+
+Future<void> selectTheme(ThemeMode mode) async {
+  themeMode.value = mode;
+  await SharedPreferencesAsync().setString('theme_mode', mode.name);
+}
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -21,6 +35,11 @@ Future<void> main() async {
     await Supabase.initialize(url: url, publishableKey: publishableKey);
     supabaseReady = true;
   }
+  final savedTheme = await SharedPreferencesAsync().getString('theme_mode');
+  themeMode.value = ThemeMode.values.firstWhere(
+    (mode) => mode.name == savedTheme,
+    orElse: () => ThemeMode.system,
+  );
   runApp(const FamilyFlixApp());
 }
 
@@ -28,19 +47,34 @@ class FamilyFlixApp extends StatelessWidget {
   const FamilyFlixApp({super.key});
 
   @override
-  Widget build(BuildContext context) => MaterialApp(
-    title: 'FamilyFlix',
-    debugShowCheckedModeBanner: false,
-    theme: ThemeData(
-      useMaterial3: true,
-      scaffoldBackgroundColor: paper,
-      colorScheme: ColorScheme.fromSeed(seedColor: accent, surface: paper),
-      textTheme: const TextTheme(
-        bodyLarge: TextStyle(color: ink, height: 1.55),
-        bodyMedium: TextStyle(color: Color(0xFF5D5A53)),
+  Widget build(BuildContext context) => ValueListenableBuilder<ThemeMode>(
+    valueListenable: themeMode,
+    builder: (context, mode, _) => MaterialApp(
+      title: 'FamilyFlix',
+      debugShowCheckedModeBanner: false,
+      themeMode: mode,
+      theme: ThemeData(
+        useMaterial3: true,
+        scaffoldBackgroundColor: paper,
+        colorScheme: ColorScheme.fromSeed(seedColor: accent, surface: paper),
+        textTheme: const TextTheme(
+          bodyLarge: TextStyle(color: ink, height: 1.55),
+          bodyMedium: TextStyle(color: Color(0xFF5D5A53)),
+        ),
       ),
+      darkTheme: ThemeData(
+        useMaterial3: true,
+        brightness: Brightness.dark,
+        scaffoldBackgroundColor: const Color(0xFF121210),
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: accent,
+          brightness: Brightness.dark,
+          surface: const Color(0xFF1B1B18),
+        ),
+        cardColor: const Color(0xFF24241F),
+      ),
+      home: const AuthGate(),
     ),
-    home: const AuthGate(),
   );
 }
 
@@ -182,11 +216,7 @@ class _AuthPageState extends State<AuthPage> {
                     createAccount
                         ? 'Rejoindre la famille'
                         : 'Bon retour parmi nous',
-                    style: const TextStyle(
-                      fontFamily: 'Georgia',
-                      fontSize: 34,
-                      color: ink,
-                    ),
+                    style: const TextStyle(fontFamily: 'Georgia', fontSize: 34),
                   ),
                   const SizedBox(height: 10),
                   Text(
@@ -281,7 +311,9 @@ class _AuthPageState extends State<AuthPage> {
                             createAccount = !createAccount;
                             message = null;
                           }),
-                    style: TextButton.styleFrom(foregroundColor: ink),
+                    style: TextButton.styleFrom(
+                      foregroundColor: Theme.of(context).colorScheme.onSurface,
+                    ),
                     child: Text(
                       createAccount
                           ? 'J’ai déjà un compte'
@@ -409,7 +441,7 @@ class HouseholdOnboardingPage extends StatelessWidget {
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
       title: const Logo(),
-      backgroundColor: paper,
+      backgroundColor: Theme.of(context).colorScheme.surface,
       actions: [
         TextButton(
           onPressed: () => Supabase.instance.client.auth.signOut(),
@@ -683,11 +715,7 @@ class _CreateHouseholdPageState extends State<CreateHouseholdPage> {
                 const Text(
                   'Votre aventure commence',
                   textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontFamily: 'Georgia',
-                    fontSize: 34,
-                    color: ink,
-                  ),
+                  style: TextStyle(fontFamily: 'Georgia', fontSize: 34),
                 ),
                 const SizedBox(height: 10),
                 const Text(
@@ -865,20 +893,28 @@ class MovieSearchPage extends StatefulWidget {
 
 class _MovieSearchPageState extends State<MovieSearchPage> {
   final searchController = TextEditingController();
+  final yearController = TextEditingController();
   List<TmdbMovie> results = const [];
+  String mediaType = 'all';
   bool loading = false;
   String? error;
 
   @override
   void dispose() {
     searchController.dispose();
+    yearController.dispose();
     super.dispose();
   }
 
   Future<void> search() async {
     final query = searchController.text.trim();
+    final year = yearController.text.trim();
     if (query.length < 2) {
       setState(() => error = 'Saisissez au moins deux caractères.');
+      return;
+    }
+    if (year.isNotEmpty && !RegExp(r'^\d{4}$').hasMatch(year)) {
+      setState(() => error = 'L’année doit contenir quatre chiffres.');
       return;
     }
     setState(() {
@@ -888,7 +924,7 @@ class _MovieSearchPageState extends State<MovieSearchPage> {
     try {
       final response = await Supabase.instance.client.functions.invoke(
         'tmdb-search',
-        body: {'query': query},
+        body: {'query': query, 'media_type': mediaType, 'year': year},
       );
       final data = Map<String, dynamic>.from(response.data as Map);
       final rawResults = data['results'] as List? ?? const [];
@@ -933,27 +969,74 @@ class _MovieSearchPageState extends State<MovieSearchPage> {
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
-      title: const Text('Trouver un film'),
-      backgroundColor: paper,
+      title: const Text('Trouver un film ou une série'),
+      backgroundColor: Theme.of(context).colorScheme.surface,
     ),
     body: PageWidth(
       child: Column(
         children: [
           const SizedBox(height: 22),
-          TextField(
-            controller: searchController,
-            autofocus: true,
-            textInputAction: TextInputAction.search,
-            onSubmitted: (_) => search(),
-            decoration: InputDecoration(
-              labelText: 'Titre du film',
-              hintText: 'Ex. Le Seigneur des anneaux',
-              border: const OutlineInputBorder(),
-              suffixIcon: IconButton(
+          SegmentedButton<String>(
+            segments: const [
+              ButtonSegment(value: 'all', label: Text('Tout')),
+              ButtonSegment(
+                value: 'movie',
+                icon: Icon(Icons.movie_outlined),
+                label: Text('Films'),
+              ),
+              ButtonSegment(
+                value: 'tv',
+                icon: Icon(Icons.tv_outlined),
+                label: Text('Séries'),
+              ),
+            ],
+            selected: {mediaType},
+            onSelectionChanged: (value) {
+              setState(() => mediaType = value.first);
+              if (searchController.text.trim().length >= 2) search();
+            },
+          ),
+          const SizedBox(height: 16),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: searchController,
+                  autofocus: true,
+                  textInputAction: TextInputAction.search,
+                  onSubmitted: (_) => search(),
+                  decoration: const InputDecoration(
+                    labelText: 'Titre du film ou de la série',
+                    hintText: 'Ex. Le Seigneur des anneaux',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 12),
+              SizedBox(
+                width: 118,
+                child: TextField(
+                  controller: yearController,
+                  keyboardType: TextInputType.number,
+                  maxLength: 4,
+                  textInputAction: TextInputAction.search,
+                  onSubmitted: (_) => search(),
+                  decoration: const InputDecoration(
+                    labelText: 'Année',
+                    hintText: '2024',
+                    counterText: '',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              IconButton.filled(
+                tooltip: 'Rechercher',
                 onPressed: loading ? null : search,
                 icon: const Icon(Icons.search),
               ),
-            ),
+            ],
           ),
           if (error != null) ...[
             const SizedBox(height: 14),
@@ -965,7 +1048,7 @@ class _MovieSearchPageState extends State<MovieSearchPage> {
             child: results.isEmpty && !loading
                 ? const Center(
                     child: Text(
-                      'Recherchez un film pour l’ajouter à votre\ncollection ou à vos souhaits.',
+                      'Recherchez un film ou une série pour l’ajouter à votre\ncollection ou à vos souhaits.',
                       textAlign: TextAlign.center,
                     ),
                   )
@@ -1006,7 +1089,16 @@ class _MovieSearchPageState extends State<MovieSearchPage> {
                           maxLines: 3,
                           overflow: TextOverflow.ellipsis,
                         ),
-                        trailing: const Icon(Icons.chevron_right),
+                        trailing: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(movie.isSeries ? Icons.tv : Icons.movie),
+                            Text(
+                              movie.isSeries ? 'Série' : 'Film',
+                              style: const TextStyle(fontSize: 10),
+                            ),
+                          ],
+                        ),
                         onTap: () => chooseMovie(movie),
                       );
                     },
@@ -1034,6 +1126,11 @@ class SaveMovieSheet extends StatefulWidget {
 class _SaveMovieSheetState extends State<SaveMovieSheet> {
   String mode = 'copy';
   String format = 'bluray';
+  String ownershipScope = 'complete_series';
+  int selectedSeason = 1;
+  Set<int> selectedSeasons = {1};
+  List<int> availableSeasons = const [];
+  bool loadingSeasons = false;
   String? mediaSourceId;
   List<MediaSource> mediaSources = const [];
   bool loadingSources = true;
@@ -1044,6 +1141,42 @@ class _SaveMovieSheetState extends State<SaveMovieSheet> {
   void initState() {
     super.initState();
     loadMediaSources();
+    if (widget.movie.isSeries) loadSeasons();
+  }
+
+  Future<void> loadSeasons() async {
+    setState(() => loadingSeasons = true);
+    try {
+      final response = await Supabase.instance.client.functions.invoke(
+        'tmdb-details',
+        body: {
+          'items': [
+            {'tmdb_id': widget.movie.tmdbId, 'media_type': 'tv'},
+          ],
+        },
+      );
+      final payload = Map<String, dynamic>.from(response.data as Map);
+      final items = payload['movies'] as List? ?? const [];
+      if (items.isEmpty || !mounted) return;
+      final detail = Map<String, dynamic>.from(items.first as Map);
+      final seasons =
+          (detail['seasons'] as List? ?? const [])
+              .map((item) => (item as Map)['number'] as int)
+              .where((number) => number > 0)
+              .toList()
+            ..sort();
+      if (!mounted) return;
+      setState(() {
+        availableSeasons = seasons;
+        if (seasons.isNotEmpty) {
+          selectedSeason = seasons.first;
+          selectedSeasons = {seasons.first};
+        }
+        loadingSeasons = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() => loadingSeasons = false);
+    }
   }
 
   Future<void> loadMediaSources() async {
@@ -1081,6 +1214,13 @@ class _SaveMovieSheetState extends State<SaveMovieSheet> {
   }
 
   Future<void> save() async {
+    if (widget.movie.isSeries &&
+        mode == 'copy' &&
+        ownershipScope == 'selected_seasons' &&
+        selectedSeasons.isEmpty) {
+      setState(() => error = 'Sélectionnez au moins une saison.');
+      return;
+    }
     setState(() {
       loading = true;
       error = null;
@@ -1090,7 +1230,10 @@ class _SaveMovieSheetState extends State<SaveMovieSheet> {
       final userId = client.auth.currentUser!.id;
       final movieRow = await client
           .from('movies')
-          .upsert(widget.movie.toDatabase(), onConflict: 'tmdb_id')
+          .upsert(
+            widget.movie.toDatabase(),
+            onConflict: 'metadata_provider,media_type,tmdb_id',
+          )
           .select('id')
           .single();
       final movieId = movieRow['id'] as String;
@@ -1102,6 +1245,13 @@ class _SaveMovieSheetState extends State<SaveMovieSheet> {
           'owner_id': userId,
           'format': format,
           'media_source_id': mediaSourceId,
+          'ownership_scope': widget.movie.isSeries ? ownershipScope : 'movie',
+          'season_numbers':
+              !widget.movie.isSeries || ownershipScope == 'complete_series'
+              ? null
+              : ownershipScope == 'single_season'
+              ? [selectedSeason]
+              : (selectedSeasons.toList()..sort()),
         });
       } else {
         await client.from('watchlists').upsert({
@@ -1116,7 +1266,7 @@ class _SaveMovieSheetState extends State<SaveMovieSheet> {
     } catch (_) {
       if (!mounted) return;
       setState(() {
-        error = 'Impossible d’enregistrer ce film pour le moment.';
+        error = 'Impossible d’enregistrer ce contenu pour le moment.';
         loading = false;
       });
     }
@@ -1138,11 +1288,7 @@ class _SaveMovieSheetState extends State<SaveMovieSheet> {
         children: [
           Text(
             widget.movie.title,
-            style: const TextStyle(
-              fontFamily: 'Georgia',
-              fontSize: 28,
-              color: ink,
-            ),
+            style: const TextStyle(fontFamily: 'Georgia', fontSize: 28),
           ),
           const SizedBox(height: 18),
           SegmentedButton<String>(
@@ -1163,6 +1309,78 @@ class _SaveMovieSheetState extends State<SaveMovieSheet> {
           ),
           if (mode == 'copy') ...[
             const SizedBox(height: 18),
+            if (widget.movie.isSeries) ...[
+              DropdownButtonFormField<String>(
+                initialValue: ownershipScope,
+                decoration: const InputDecoration(
+                  labelText: 'Partie de la série possédée',
+                  border: OutlineInputBorder(),
+                ),
+                items: const [
+                  DropdownMenuItem(
+                    value: 'complete_series',
+                    child: Text('Série complète'),
+                  ),
+                  DropdownMenuItem(
+                    value: 'single_season',
+                    child: Text('Une saison particulière'),
+                  ),
+                  DropdownMenuItem(
+                    value: 'selected_seasons',
+                    child: Text('Plusieurs saisons'),
+                  ),
+                ],
+                onChanged: (value) => setState(() => ownershipScope = value!),
+              ),
+              const SizedBox(height: 14),
+              if (loadingSeasons)
+                const LinearProgressIndicator()
+              else if (ownershipScope == 'single_season')
+                DropdownButtonFormField<int>(
+                  initialValue: selectedSeason,
+                  decoration: const InputDecoration(
+                    labelText: 'Saison possédée',
+                    border: OutlineInputBorder(),
+                  ),
+                  items:
+                      (availableSeasons.isEmpty ? const [1] : availableSeasons)
+                          .map(
+                            (number) => DropdownMenuItem(
+                              value: number,
+                              child: Text('Saison $number'),
+                            ),
+                          )
+                          .toList(),
+                  onChanged: (value) => setState(() => selectedSeason = value!),
+                )
+              else if (ownershipScope == 'selected_seasons')
+                InputDecorator(
+                  decoration: const InputDecoration(
+                    labelText: 'Saisons possédées',
+                    border: OutlineInputBorder(),
+                  ),
+                  child: Wrap(
+                    spacing: 8,
+                    children:
+                        (availableSeasons.isEmpty
+                                ? const [1]
+                                : availableSeasons)
+                            .map(
+                              (number) => FilterChip(
+                                label: Text('S$number'),
+                                selected: selectedSeasons.contains(number),
+                                onSelected: (selected) => setState(() {
+                                  selected
+                                      ? selectedSeasons.add(number)
+                                      : selectedSeasons.remove(number);
+                                }),
+                              ),
+                            )
+                            .toList(),
+                  ),
+                ),
+              const SizedBox(height: 14),
+            ],
             if (loadingSources)
               const LinearProgressIndicator()
             else
@@ -1713,7 +1931,7 @@ class _MediaSourcesPageState extends State<MediaSourcesPage> {
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
       title: const Text('Supports de la famille'),
-      backgroundColor: paper,
+      backgroundColor: Theme.of(context).colorScheme.surface,
     ),
     floatingActionButton: widget.household.role == 'owner'
         ? FloatingActionButton.extended(
@@ -1907,6 +2125,7 @@ class MediaSourceDraft {
 class TmdbMovie {
   const TmdbMovie({
     required this.tmdbId,
+    required this.mediaType,
     required this.title,
     required this.originalTitle,
     required this.overview,
@@ -1916,6 +2135,7 @@ class TmdbMovie {
 
   factory TmdbMovie.fromJson(Map<String, dynamic> json) => TmdbMovie(
     tmdbId: json['tmdb_id'] as int,
+    mediaType: json['media_type'] as String? ?? 'movie',
     title: json['title'] as String? ?? 'Sans titre',
     originalTitle: json['original_title'] as String?,
     overview: json['overview'] as String? ?? '',
@@ -1924,6 +2144,7 @@ class TmdbMovie {
   );
 
   final int tmdbId;
+  final String mediaType;
   final String title;
   final String? originalTitle;
   final String overview;
@@ -1931,11 +2152,13 @@ class TmdbMovie {
   final String? posterPath;
 
   String get year => releaseDate?.split('-').first ?? '';
+  bool get isSeries => mediaType == 'tv';
   String? get posterUrl =>
       posterPath == null ? null : 'https://image.tmdb.org/t/p/w185$posterPath';
 
   Map<String, dynamic> toDatabase() => {
     'tmdb_id': tmdbId,
+    'media_type': mediaType,
     'title': title,
     'original_title': originalTitle,
     'overview': overview,
@@ -1988,10 +2211,42 @@ class Header extends StatelessWidget {
         children: [
           const Logo(),
           const Spacer(),
+          ValueListenableBuilder<ThemeMode>(
+            valueListenable: themeMode,
+            builder: (context, mode, _) => PopupMenuButton<ThemeMode>(
+              tooltip: 'Choisir le thème',
+              initialValue: mode,
+              onSelected: selectTheme,
+              icon: Icon(
+                mode == ThemeMode.dark
+                    ? Icons.dark_mode_outlined
+                    : mode == ThemeMode.light
+                    ? Icons.light_mode_outlined
+                    : Icons.brightness_auto_outlined,
+              ),
+              itemBuilder: (_) => const [
+                PopupMenuItem(
+                  value: ThemeMode.system,
+                  child: Text('Thème du système'),
+                ),
+                PopupMenuItem(
+                  value: ThemeMode.light,
+                  child: Text('Thème clair'),
+                ),
+                PopupMenuItem(
+                  value: ThemeMode.dark,
+                  child: Text('Thème sombre'),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 4),
           if (MediaQuery.sizeOf(context).width > 520)
             TextButton(
               onPressed: onLogin,
-              style: TextButton.styleFrom(foregroundColor: ink),
+              style: TextButton.styleFrom(
+                foregroundColor: Theme.of(context).colorScheme.onSurface,
+              ),
               child: Text(
                 authenticated ? 'Se déconnecter' : 'Se connecter',
                 style: const TextStyle(fontWeight: FontWeight.w800),
@@ -2024,7 +2279,7 @@ class Header extends StatelessWidget {
                 Text(
                   [
                     ?familyName,
-                    '$filmCount film${filmCount > 1 ? 's' : ''}',
+                    '$filmCount contenu${filmCount > 1 ? 's' : ''}',
                   ].join(' · '),
                   style: const TextStyle(
                     fontSize: 11,
@@ -2124,20 +2379,20 @@ class Logo extends StatelessWidget {
   const Logo({super.key});
 
   @override
-  Widget build(BuildContext context) => const Text.rich(
+  Widget build(BuildContext context) => Text.rich(
     TextSpan(
       children: [
         TextSpan(
           text: 'Family',
-          style: TextStyle(color: ink),
+          style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
         ),
-        TextSpan(
+        const TextSpan(
           text: 'Flix',
           style: TextStyle(color: accent),
         ),
       ],
     ),
-    style: TextStyle(
+    style: const TextStyle(
       fontSize: 25,
       fontWeight: FontWeight.w900,
       letterSpacing: -1.4,
@@ -2181,7 +2436,6 @@ class HeroSection extends StatelessWidget {
                 ],
               ),
               style: TextStyle(
-                color: ink,
                 fontFamily: 'Georgia',
                 fontSize: mobile ? 52 : 88,
                 height: .94,
@@ -2208,7 +2462,7 @@ class HeroSection extends StatelessWidget {
                 FilledButton.icon(
                   onPressed: onAdd,
                   icon: const Icon(Icons.add, size: 19),
-                  label: const Text('Ajouter un film'),
+                  label: const Text('Ajouter un film ou une série'),
                   style: FilledButton.styleFrom(
                     backgroundColor: ink,
                     foregroundColor: Colors.white,
@@ -2224,8 +2478,10 @@ class HeroSection extends StatelessWidget {
                 OutlinedButton(
                   onPressed: onManageSources,
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: ink,
-                    side: const BorderSide(color: ink),
+                    foregroundColor: Theme.of(context).colorScheme.onSurface,
+                    side: BorderSide(
+                      color: Theme.of(context).colorScheme.onSurface,
+                    ),
                     padding: const EdgeInsets.symmetric(
                       horizontal: 22,
                       vertical: 18,
@@ -2280,11 +2536,7 @@ class Collection extends StatelessWidget {
                 const SizedBox(height: 8),
                 const Text(
                   'Dans la vidéothèque',
-                  style: TextStyle(
-                    fontFamily: 'Georgia',
-                    fontSize: 39,
-                    color: ink,
-                  ),
+                  style: TextStyle(fontFamily: 'Georgia', fontSize: 39),
                 ),
                 const SizedBox(height: 28),
                 GridView.builder(
@@ -2334,6 +2586,7 @@ class _FamilyLibraryState extends State<FamilyLibrary> {
   String formatFilter = 'all';
   String genreFilter = 'all';
   String ageFilter = 'all';
+  String yearFilter = 'all';
   String sortOrder = 'recent';
 
   @override
@@ -2353,7 +2606,7 @@ class _FamilyLibraryState extends State<FamilyLibrary> {
         client
             .from('copies')
             .select(
-              'id, owner_id, format, movies!copies_movie_id_fkey(id, tmdb_id, title, overview, release_date, poster_path), '
+              'id, owner_id, format, ownership_scope, season_numbers, movies!copies_movie_id_fkey(id, tmdb_id, media_type, title, overview, release_date, poster_path), '
               'household_members!copies_household_id_owner_id_fkey(display_name), '
               'media_sources!copies_media_source_scope_fkey(name)',
             )
@@ -2362,7 +2615,7 @@ class _FamilyLibraryState extends State<FamilyLibrary> {
         client
             .from('watchlists')
             .select(
-              'movies!watchlists_movie_id_fkey(id, tmdb_id, title, overview, release_date, poster_path), '
+              'movies!watchlists_movie_id_fkey(id, tmdb_id, media_type, title, overview, release_date, poster_path), '
               'household_members!watchlists_household_id_user_id_fkey(display_name)',
             )
             .eq('household_id', widget.household.id)
@@ -2382,45 +2635,56 @@ class _FamilyLibraryState extends State<FamilyLibrary> {
                 LibraryMovie.fromWish(Map<String, dynamic>.from(row as Map)),
           )
           .toList();
-      final details = await loadTmdbDetails([
-        ...parsedCopies.map((movie) => movie.tmdbId),
-        ...parsedWishes.map((movie) => movie.tmdbId),
-      ]);
+      final details = await loadTmdbDetails([...parsedCopies, ...parsedWishes]);
       if (!mounted) return;
       setState(() {
         copies = parsedCopies
-            .map((movie) => movie.withDetails(details[movie.tmdbId]))
+            .map((movie) => movie.withDetails(details[movie.tmdbKey]))
             .toList();
         wishes = parsedWishes
-            .map((movie) => movie.withDetails(details[movie.tmdbId]))
+            .map((movie) => movie.withDetails(details[movie.tmdbKey]))
             .toList();
         loading = false;
       });
     } catch (_) {
       if (!mounted) return;
       setState(() {
-        error = 'Impossible de charger les films de la famille.';
+        error = 'Impossible de charger la vidéothèque de la famille.';
         loading = false;
       });
     }
   }
 
-  Future<Map<int, TmdbMovieDetails>> loadTmdbDetails(List<int> ids) async {
-    final uniqueIds = ids.where((id) => id > 0).toSet().toList();
-    final details = <int, TmdbMovieDetails>{};
+  Future<Map<String, TmdbMovieDetails>> loadTmdbDetails(
+    List<LibraryMovie> media,
+  ) async {
+    final uniqueMedia = <String, LibraryMovie>{
+      for (final item in media) item.tmdbKey: item,
+    }.values.toList();
+    final details = <String, TmdbMovieDetails>{};
     try {
-      for (var start = 0; start < uniqueIds.length; start += 50) {
-        final end = (start + 50).clamp(0, uniqueIds.length);
+      for (var start = 0; start < uniqueMedia.length; start += 50) {
+        final end = (start + 50).clamp(0, uniqueMedia.length);
         final response = await Supabase.instance.client.functions.invoke(
           'tmdb-details',
-          body: {'movie_ids': uniqueIds.sublist(start, end)},
+          body: {
+            'items': uniqueMedia
+                .sublist(start, end)
+                .map(
+                  (item) => {
+                    'tmdb_id': item.tmdbId,
+                    'media_type': item.mediaType,
+                  },
+                )
+                .toList(),
+          },
         );
         final payload = Map<String, dynamic>.from(response.data as Map);
         for (final item in payload['movies'] as List? ?? const []) {
           final detail = TmdbMovieDetails.fromJson(
             Map<String, dynamic>.from(item as Map),
           );
-          details[detail.tmdbId] = detail;
+          details[detail.tmdbKey] = detail;
         }
       }
     } catch (_) {
@@ -2436,7 +2700,8 @@ class _FamilyLibraryState extends State<FamilyLibrary> {
       final genreMatches =
           genreFilter == 'all' || movie.genres.contains(genreFilter);
       final ageMatches = ageFilter == 'all' || movie.ageCategory == ageFilter;
-      return formatMatches && genreMatches && ageMatches;
+      final yearMatches = yearFilter == 'all' || movie.year == yearFilter;
+      return formatMatches && genreMatches && ageMatches && yearMatches;
     }).toList();
     if (sortOrder == 'title') {
       result.sort(
@@ -2464,11 +2729,28 @@ class _FamilyLibraryState extends State<FamilyLibrary> {
               LibraryMovie.ageValue(a).compareTo(LibraryMovie.ageValue(b)),
         );
 
+  List<String> get availableYears =>
+      copies
+          .map((movie) => movie.year)
+          .where((year) => year.isNotEmpty)
+          .toSet()
+          .toList()
+        ..sort((a, b) => b.compareTo(a));
+
+  Future<void> openCatalog() async {
+    await Navigator.of(context).push<void>(
+      MaterialPageRoute(
+        builder: (_) =>
+            FamilyCatalogPage(household: widget.household, movies: copies),
+      ),
+    );
+  }
+
   Future<void> deleteCopy(LibraryMovie movie) async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Retirer ce film ?'),
+        title: Text('Retirer ${movie.typeLabel.toLowerCase()} ?'),
         content: Text(
           '“${movie.title}” sera retiré de votre vidéothèque. Les souhaits et avis éventuels seront conservés.',
         ),
@@ -2499,7 +2781,7 @@ class _FamilyLibraryState extends State<FamilyLibrary> {
     } catch (_) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Impossible de retirer ce film.')),
+        const SnackBar(content: Text('Impossible de retirer ce contenu.')),
       );
     }
   }
@@ -2544,12 +2826,8 @@ class _FamilyLibraryState extends State<FamilyLibrary> {
                   const Kicker('VIDÉOTHÈQUE FAMILIALE'),
                   const SizedBox(height: 8),
                   const Text(
-                    'Les films que vous possédez',
-                    style: TextStyle(
-                      fontFamily: 'Georgia',
-                      fontSize: 36,
-                      color: ink,
-                    ),
+                    'Les films et séries que vous possédez',
+                    style: TextStyle(fontFamily: 'Georgia', fontSize: 36),
                   ),
                   const SizedBox(height: 22),
                   if (copies.isEmpty)
@@ -2559,25 +2837,35 @@ class _FamilyLibraryState extends State<FamilyLibrary> {
                       format: formatFilter,
                       genre: genreFilter,
                       age: ageFilter,
+                      year: yearFilter,
                       sort: sortOrder,
                       genres: availableGenres,
                       ages: availableAges,
+                      years: availableYears,
                       onFormatChanged: (value) =>
                           setState(() => formatFilter = value),
                       onGenreChanged: (value) =>
                           setState(() => genreFilter = value),
                       onAgeChanged: (value) =>
                           setState(() => ageFilter = value),
+                      onYearChanged: (value) =>
+                          setState(() => yearFilter = value),
                       onSortChanged: (value) =>
                           setState(() => sortOrder = value),
                     ),
                     const SizedBox(height: 18),
+                    OutlinedButton.icon(
+                      onPressed: openCatalog,
+                      icon: const Icon(Icons.table_rows_outlined),
+                      label: const Text('Voir toute la collection en tableau'),
+                    ),
+                    const SizedBox(height: 18),
                     Text(
-                      '${filteredCopies.length} film${filteredCopies.length > 1 ? 's' : ''}',
+                      '${filteredCopies.length} contenu${filteredCopies.length > 1 ? 's' : ''}',
                     ),
                     const SizedBox(height: 10),
                     if (filteredCopies.isEmpty)
-                      const Text('Aucun film ne correspond à ces filtres.')
+                      const Text('Aucun contenu ne correspond à ces filtres.')
                     else
                       MovieStrip(
                         movies: filteredCopies,
@@ -2590,21 +2878,323 @@ class _FamilyLibraryState extends State<FamilyLibrary> {
                   const SizedBox(height: 8),
                   const Text(
                     'Les souhaits de la famille',
-                    style: TextStyle(
-                      fontFamily: 'Georgia',
-                      fontSize: 36,
-                      color: ink,
-                    ),
+                    style: TextStyle(fontFamily: 'Georgia', fontSize: 36),
                   ),
                   const SizedBox(height: 22),
                   if (wishes.isEmpty)
                     const Text(
-                      'Aucun souhait pour le moment. Utilisez “Ajouter un film” pour proposer une idée.',
+                      'Aucun souhait pour le moment. Utilisez “Ajouter” pour proposer une idée.',
                     )
                   else
                     MovieStrip(movies: wishes, wish: true, onOpen: openMovie),
                 ],
               ),
+      ),
+    ),
+  );
+}
+
+class FamilyCatalogPage extends StatefulWidget {
+  const FamilyCatalogPage({
+    super.key,
+    required this.household,
+    required this.movies,
+  });
+
+  final HouseholdSummary household;
+  final List<LibraryMovie> movies;
+
+  @override
+  State<FamilyCatalogPage> createState() => FamilyCatalogPageState();
+}
+
+class FamilyCatalogPageState extends State<FamilyCatalogPage> {
+  String format = 'all';
+  String genre = 'all';
+  String age = 'all';
+  String year = 'all';
+  String sort = 'title';
+  bool exporting = false;
+
+  List<String> get genres =>
+      widget.movies.expand((movie) => movie.genres).toSet().toList()..sort();
+  List<String> get ages =>
+      widget.movies
+          .map((movie) => movie.ageCategory)
+          .where((value) => value != 'unknown')
+          .toSet()
+          .toList()
+        ..sort(
+          (a, b) =>
+              LibraryMovie.ageValue(a).compareTo(LibraryMovie.ageValue(b)),
+        );
+  List<String> get years =>
+      widget.movies
+          .map((movie) => movie.year)
+          .where((value) => value.isNotEmpty)
+          .toSet()
+          .toList()
+        ..sort((a, b) => b.compareTo(a));
+
+  List<LibraryMovie> get filteredMovies {
+    final result = widget.movies.where((movie) {
+      return (format == 'all' || movie.format == format) &&
+          (genre == 'all' || movie.genres.contains(genre)) &&
+          (age == 'all' || movie.ageCategory == age) &&
+          (year == 'all' || movie.year == year);
+    }).toList();
+    switch (sort) {
+      case 'title':
+        result.sort(
+          (a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()),
+        );
+      case 'year':
+        result.sort((a, b) => b.year.compareTo(a.year));
+      case 'age':
+        result.sort((a, b) => a.ageSortValue.compareTo(b.ageSortValue));
+    }
+    return result;
+  }
+
+  String csvCell(String value) => '"${value.replaceAll('"', '""')}"';
+
+  Future<void> exportCsv() async {
+    setState(() => exporting = true);
+    try {
+      final rows = <List<String>>[
+        [
+          'Titre',
+          'Type',
+          'Année',
+          'Propriétaire',
+          'Support',
+          'Emplacement',
+          'Possession',
+          'Genres',
+          'Âge conseillé',
+        ],
+        for (final movie in filteredMovies)
+          [
+            movie.title,
+            movie.typeLabel,
+            movie.year,
+            movie.member,
+            movie.formatLabel,
+            movie.sourceName,
+            movie.isSeries ? movie.ownershipLabel : 'Film complet',
+            movie.genres.join(' | '),
+            LibraryMovie.ageLabel(movie.ageCategory),
+          ],
+      ];
+      final csv = rows.map((row) => row.map(csvCell).join(';')).join('\r\n');
+      await FileSaver.instance.saveFile(
+        name:
+            'familyflix-${widget.household.name.toLowerCase().replaceAll(' ', '-')}',
+        bytes: Uint8List.fromList([0xEF, 0xBB, 0xBF, ...utf8.encode(csv)]),
+        fileExtension: 'csv',
+        mimeType: MimeType.csv,
+      );
+    } finally {
+      if (mounted) setState(() => exporting = false);
+    }
+  }
+
+  Future<Uint8List> buildPdf(PdfPageFormat format) async {
+    final regularFont = pw.Font.ttf(
+      await rootBundle.load('assets/fonts/Roboto-Regular.ttf'),
+    );
+    final boldFont = pw.Font.ttf(
+      await rootBundle.load('assets/fonts/Roboto-Medium.ttf'),
+    );
+    final document = pw.Document(
+      title: 'Catalogue FamilyFlix - ${widget.household.name}',
+      author: 'FamilyFlix',
+      theme: pw.ThemeData.withFont(base: regularFont, bold: boldFont),
+    );
+    final rows = [
+      for (final movie in filteredMovies)
+        [
+          movie.title,
+          movie.typeLabel,
+          movie.year,
+          movie.member,
+          movie.formatLabel,
+          movie.isSeries ? movie.ownershipLabel : 'Film complet',
+        ],
+    ];
+    document.addPage(
+      pw.MultiPage(
+        pageFormat: PdfPageFormat.a4.landscape,
+        margin: const pw.EdgeInsets.all(32),
+        header: (_) => pw.Column(
+          crossAxisAlignment: pw.CrossAxisAlignment.start,
+          children: [
+            pw.Text(
+              'FamilyFlix',
+              style: pw.TextStyle(
+                fontSize: 24,
+                fontWeight: pw.FontWeight.bold,
+                color: PdfColor.fromHex('#E84E2C'),
+              ),
+            ),
+            pw.Text(
+              'Catalogue de ${widget.household.name} - ${rows.length} contenu${rows.length > 1 ? 's' : ''}',
+            ),
+            pw.SizedBox(height: 12),
+          ],
+        ),
+        footer: (context) => pw.Align(
+          alignment: pw.Alignment.centerRight,
+          child: pw.Text('Page ${context.pageNumber} / ${context.pagesCount}'),
+        ),
+        build: (_) => [
+          pw.TableHelper.fromTextArray(
+            headers: const [
+              'Titre',
+              'Type',
+              'Année',
+              'Propriétaire',
+              'Support',
+              'Possession',
+            ],
+            data: rows,
+            headerDecoration: pw.BoxDecoration(
+              color: PdfColor.fromHex('#171715'),
+            ),
+            headerStyle: pw.TextStyle(
+              color: PdfColors.white,
+              fontWeight: pw.FontWeight.bold,
+            ),
+            cellStyle: const pw.TextStyle(fontSize: 9),
+            cellPadding: const pw.EdgeInsets.all(6),
+            oddRowDecoration: pw.BoxDecoration(
+              color: PdfColor.fromHex('#F3F0E8'),
+            ),
+            columnWidths: const {
+              0: pw.FlexColumnWidth(2.3),
+              1: pw.FlexColumnWidth(.7),
+              2: pw.FlexColumnWidth(.7),
+              3: pw.FlexColumnWidth(1.2),
+              4: pw.FlexColumnWidth(1.2),
+              5: pw.FlexColumnWidth(1.5),
+            },
+          ),
+        ],
+      ),
+    );
+    return document.save();
+  }
+
+  Future<void> exportPdf() async {
+    setState(() => exporting = true);
+    try {
+      await Printing.layoutPdf(
+        name: 'familyflix-${widget.household.name}.pdf',
+        onLayout: buildPdf,
+      );
+    } finally {
+      if (mounted) setState(() => exporting = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('Catalogue complet')),
+    body: PageWidth(
+      child: ListView(
+        padding: const EdgeInsets.symmetric(vertical: 24),
+        children: [
+          Text(
+            widget.household.name,
+            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+              fontFamily: 'Georgia',
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 18),
+          LibraryFilters(
+            format: format,
+            genre: genre,
+            age: age,
+            year: year,
+            sort: sort,
+            genres: genres,
+            ages: ages,
+            years: years,
+            onFormatChanged: (value) => setState(() => format = value),
+            onGenreChanged: (value) => setState(() => genre = value),
+            onAgeChanged: (value) => setState(() => age = value),
+            onYearChanged: (value) => setState(() => year = value),
+            onSortChanged: (value) => setState(() => sort = value),
+          ),
+          const SizedBox(height: 18),
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              Text(
+                '${filteredMovies.length} résultat${filteredMovies.length > 1 ? 's' : ''}',
+              ),
+              FilledButton.icon(
+                onPressed: exporting ? null : exportPdf,
+                icon: const Icon(Icons.picture_as_pdf_outlined),
+                label: const Text('PDF / Imprimer'),
+              ),
+              OutlinedButton.icon(
+                onPressed: exporting ? null : exportCsv,
+                icon: const Icon(Icons.table_view_outlined),
+                label: const Text('Exporter en CSV'),
+              ),
+              if (exporting)
+                const SizedBox.square(
+                  dimension: 22,
+                  child: CircularProgressIndicator(),
+                ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          if (filteredMovies.isEmpty)
+            const Text('Aucun contenu ne correspond à ces filtres.')
+          else
+            Card(
+              clipBehavior: Clip.antiAlias,
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: DataTable(
+                  columns: const [
+                    DataColumn(label: Text('Titre')),
+                    DataColumn(label: Text('Type')),
+                    DataColumn(label: Text('Année')),
+                    DataColumn(label: Text('Propriétaire')),
+                    DataColumn(label: Text('Support')),
+                    DataColumn(label: Text('Emplacement')),
+                    DataColumn(label: Text('Possession')),
+                  ],
+                  rows: [
+                    for (final movie in filteredMovies)
+                      DataRow(
+                        cells: [
+                          DataCell(Text(movie.title)),
+                          DataCell(Text(movie.typeLabel)),
+                          DataCell(Text(movie.year)),
+                          DataCell(Text(movie.member)),
+                          DataCell(Text(movie.formatLabel)),
+                          DataCell(Text(movie.sourceName)),
+                          DataCell(
+                            Text(
+                              movie.isSeries
+                                  ? movie.ownershipLabel
+                                  : 'Film complet',
+                            ),
+                          ),
+                        ],
+                      ),
+                  ],
+                ),
+              ),
+            ),
+        ],
       ),
     ),
   );
@@ -2618,7 +3208,7 @@ class EmptyLibraryMessage extends StatelessWidget {
   Widget build(BuildContext context) => OutlinedButton.icon(
     onPressed: onAdd,
     icon: const Icon(Icons.add),
-    label: const Text('Ajouter le premier film'),
+    label: const Text('Ajouter le premier film ou la première série'),
   );
 }
 
@@ -2628,24 +3218,30 @@ class LibraryFilters extends StatelessWidget {
     required this.format,
     required this.genre,
     required this.age,
+    required this.year,
     required this.sort,
     required this.genres,
     required this.ages,
+    required this.years,
     required this.onFormatChanged,
     required this.onGenreChanged,
     required this.onAgeChanged,
+    required this.onYearChanged,
     required this.onSortChanged,
   });
 
   final String format;
   final String genre;
   final String age;
+  final String year;
   final String sort;
   final List<String> genres;
   final List<String> ages;
+  final List<String> years;
   final ValueChanged<String> onFormatChanged;
   final ValueChanged<String> onGenreChanged;
   final ValueChanged<String> onAgeChanged;
+  final ValueChanged<String> onYearChanged;
   final ValueChanged<String> onSortChanged;
 
   @override
@@ -2683,6 +3279,12 @@ class LibraryFilters extends StatelessWidget {
         onChanged: onAgeChanged,
       ),
       _filter(
+        label: 'Année',
+        value: year,
+        items: {'all': 'Toutes', for (final item in years) item: item},
+        onChanged: onYearChanged,
+      ),
+      _filter(
         label: 'Classer par',
         value: sort,
         items: const {
@@ -2705,6 +3307,7 @@ class LibraryFilters extends StatelessWidget {
     width: 190,
     child: DropdownButtonFormField<String>(
       initialValue: value,
+      isExpanded: true,
       decoration: InputDecoration(
         labelText: label,
         border: const OutlineInputBorder(),
@@ -2801,7 +3404,7 @@ class LibraryMovieCard extends StatelessWidget {
                 movie.title,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontWeight: FontWeight.w800, color: ink),
+                style: const TextStyle(fontWeight: FontWeight.w800),
               ),
             ),
             if (!wish &&
@@ -2834,6 +3437,13 @@ class LibraryMovieCard extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             style: const TextStyle(fontSize: 10, color: accent),
           ),
+        if (!wish && movie.isSeries)
+          Text(
+            movie.ownershipLabel,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 10, color: Color(0xFF55514A)),
+          ),
       ],
     ),
   );
@@ -2845,6 +3455,7 @@ class LibraryMovie {
     required this.ownerId,
     required this.id,
     required this.tmdbId,
+    required this.mediaType,
     required this.title,
     required this.overview,
     required this.releaseDate,
@@ -2852,6 +3463,8 @@ class LibraryMovie {
     required this.member,
     required this.format,
     required this.sourceName,
+    required this.ownershipScope,
+    required this.seasonNumbers,
     this.details,
   });
 
@@ -2863,6 +3476,7 @@ class LibraryMovie {
       ownerId: row['owner_id'] as String,
       id: movie['id'] as String,
       tmdbId: movie['tmdb_id'] as int,
+      mediaType: movie['media_type'] as String? ?? 'movie',
       title: movie['title'] as String,
       overview: movie['overview'] as String? ?? '',
       releaseDate: movie['release_date'] as String?,
@@ -2872,6 +3486,8 @@ class LibraryMovie {
       sourceName: row['media_sources'] == null
           ? ''
           : (row['media_sources'] as Map)['name'] as String? ?? '',
+      ownershipScope: row['ownership_scope'] as String? ?? 'movie',
+      seasonNumbers: (row['season_numbers'] as List? ?? const []).cast<int>(),
     );
   }
 
@@ -2883,6 +3499,7 @@ class LibraryMovie {
       ownerId: '',
       id: movie['id'] as String,
       tmdbId: movie['tmdb_id'] as int,
+      mediaType: movie['media_type'] as String? ?? 'movie',
       title: movie['title'] as String,
       overview: movie['overview'] as String? ?? '',
       releaseDate: movie['release_date'] as String?,
@@ -2890,6 +3507,8 @@ class LibraryMovie {
       member: member['display_name'] as String? ?? '',
       format: '',
       sourceName: '',
+      ownershipScope: 'movie',
+      seasonNumbers: const [],
     );
   }
 
@@ -2897,6 +3516,7 @@ class LibraryMovie {
   final String ownerId;
   final String id;
   final int tmdbId;
+  final String mediaType;
   final String title;
   final String overview;
   final String? releaseDate;
@@ -2904,6 +3524,8 @@ class LibraryMovie {
   final String member;
   final String format;
   final String sourceName;
+  final String ownershipScope;
+  final List<int> seasonNumbers;
   final TmdbMovieDetails? details;
 
   LibraryMovie withDetails(TmdbMovieDetails? value) => LibraryMovie(
@@ -2911,6 +3533,7 @@ class LibraryMovie {
     ownerId: ownerId,
     id: id,
     tmdbId: tmdbId,
+    mediaType: mediaType,
     title: title,
     overview: overview,
     releaseDate: releaseDate,
@@ -2918,10 +3541,22 @@ class LibraryMovie {
     member: member,
     format: format,
     sourceName: sourceName,
+    ownershipScope: ownershipScope,
+    seasonNumbers: seasonNumbers,
     details: value,
   );
 
   String get year => releaseDate?.split('-').first ?? '';
+  bool get isSeries => mediaType == 'tv';
+  String get typeLabel => isSeries ? 'Série' : 'Film';
+  String get tmdbKey => '$mediaType:$tmdbId';
+  String get ownershipLabel => switch (ownershipScope) {
+    'complete_series' => 'Série complète',
+    'single_season' => 'Saison ${seasonNumbers.firstOrNull ?? '?'}',
+    'selected_seasons' =>
+      'Saisons ${seasonNumbers.map((number) => number.toString()).join(', ')}',
+    _ => '',
+  };
   String? get posterUrl =>
       posterPath == null ? null : 'https://image.tmdb.org/t/p/w342$posterPath';
   String get formatLabel => switch (format) {
@@ -2958,6 +3593,7 @@ class LibraryMovie {
 class TmdbMovieDetails {
   const TmdbMovieDetails({
     required this.tmdbId,
+    required this.mediaType,
     required this.overview,
     required this.backdropPath,
     required this.runtime,
@@ -2971,6 +3607,7 @@ class TmdbMovieDetails {
   factory TmdbMovieDetails.fromJson(Map<String, dynamic> json) =>
       TmdbMovieDetails(
         tmdbId: json['tmdb_id'] as int,
+        mediaType: json['media_type'] as String? ?? 'movie',
         overview: json['overview'] as String? ?? '',
         backdropPath: json['backdrop_path'] as String?,
         runtime: json['runtime'] as int?,
@@ -2992,6 +3629,7 @@ class TmdbMovieDetails {
       );
 
   final int tmdbId;
+  final String mediaType;
   final String overview;
   final String? backdropPath;
   final int? runtime;
@@ -3000,6 +3638,7 @@ class TmdbMovieDetails {
   final List<String> genres;
   final List<TmdbActor> cast;
   final List<TmdbVideo> videos;
+  String get tmdbKey => '$mediaType:$tmdbId';
 
   String? get backdropUrl => backdropPath == null
       ? null
@@ -3158,6 +3797,11 @@ class MoviePresentation extends StatelessWidget {
                           : '${movie.formatLabel} · ${movie.sourceName}',
                       style: const TextStyle(color: Colors.white70),
                     ),
+                  if (movie.isSeries && movie.ownershipLabel.isNotEmpty)
+                    Text(
+                      movie.ownershipLabel,
+                      style: const TextStyle(color: Colors.white70),
+                    ),
                 ],
               );
               return compact
@@ -3182,7 +3826,7 @@ class MoviePresentation extends StatelessWidget {
         const SizedBox(height: 32),
         const Text(
           'Synopsis',
-          style: TextStyle(fontFamily: 'Georgia', fontSize: 28, color: ink),
+          style: TextStyle(fontFamily: 'Georgia', fontSize: 28),
         ),
         const SizedBox(height: 9),
         Text(
@@ -3195,7 +3839,7 @@ class MoviePresentation extends StatelessWidget {
           const SizedBox(height: 38),
           const Text(
             'Distribution',
-            style: TextStyle(fontFamily: 'Georgia', fontSize: 28, color: ink),
+            style: TextStyle(fontFamily: 'Georgia', fontSize: 28),
           ),
           const SizedBox(height: 14),
           SizedBox(
@@ -3251,7 +3895,7 @@ class MoviePresentation extends StatelessWidget {
           const SizedBox(height: 38),
           const Text(
             'Vidéos et bandes-annonces',
-            style: TextStyle(fontFamily: 'Georgia', fontSize: 28, color: ink),
+            style: TextStyle(fontFamily: 'Georgia', fontSize: 28),
           ),
           const SizedBox(height: 14),
           Wrap(
@@ -3367,7 +4011,6 @@ class _ActorDetailDialogState extends State<ActorDetailDialog> {
                               style: const TextStyle(
                                 fontFamily: 'Georgia',
                                 fontSize: 32,
-                                color: ink,
                               ),
                             ),
                             if (widget.actor.character.isNotEmpty)
@@ -3578,7 +4221,10 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: Text(widget.movie.title), backgroundColor: paper),
+    appBar: AppBar(
+      title: Text(widget.movie.title),
+      backgroundColor: Theme.of(context).colorScheme.surface,
+    ),
     body: PageWidth(
       child: loading
           ? const Center(child: CircularProgressIndicator())
@@ -3589,11 +4235,7 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
                 const Divider(height: 64),
                 const Text(
                   'Votre avis',
-                  style: TextStyle(
-                    fontFamily: 'Georgia',
-                    fontSize: 26,
-                    color: ink,
-                  ),
+                  style: TextStyle(fontFamily: 'Georgia', fontSize: 26),
                 ),
                 const SizedBox(height: 10),
                 Wrap(
@@ -3655,11 +4297,7 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
                 const SizedBox(height: 38),
                 const Text(
                   'Avis de la famille',
-                  style: TextStyle(
-                    fontFamily: 'Georgia',
-                    fontSize: 26,
-                    color: ink,
-                  ),
+                  style: TextStyle(fontFamily: 'Georgia', fontSize: 26),
                 ),
                 const SizedBox(height: 10),
                 if (reviews.isEmpty)
@@ -3733,10 +4371,7 @@ class MovieCard extends StatelessWidget {
                 Text(
                   movie.title,
                   maxLines: 2,
-                  style: const TextStyle(
-                    fontWeight: FontWeight.w800,
-                    color: ink,
-                  ),
+                  style: const TextStyle(fontWeight: FontWeight.w800),
                 ),
                 const SizedBox(height: 4),
                 Text(
@@ -3859,13 +4494,15 @@ class AddMovieCard extends StatelessWidget {
             height: 52,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              border: Border.all(color: ink),
+              border: Border.all(
+                color: Theme.of(context).colorScheme.onSurface,
+              ),
             ),
             child: const Icon(Icons.add),
           ),
           const SizedBox(height: 20),
           const Text(
-            'Ajouter votre premier film',
+            'Ajouter votre premier film ou votre première série',
             textAlign: TextAlign.center,
             style: TextStyle(fontFamily: 'Georgia', fontSize: 20),
           ),

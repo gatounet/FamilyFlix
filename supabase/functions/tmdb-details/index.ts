@@ -8,7 +8,17 @@ const corsHeaders = {
 
 type JsonObject = Record<string, unknown>;
 
-function certification(payload: JsonObject): string | null {
+function certification(payload: JsonObject, mediaType: string): string | null {
+  if (mediaType === "tv") {
+    const ratings = payload.content_ratings as JsonObject | undefined;
+    const countries = Array.isArray(ratings?.results)
+      ? ratings.results as JsonObject[]
+      : [];
+    const french = countries.find((country) => country.iso_3166_1 === "FR");
+    return typeof french?.rating === "string" && french.rating !== ""
+      ? french.rating
+      : null;
+  }
   const releaseDates = payload.release_dates as JsonObject | undefined;
   const countries = Array.isArray(releaseDates?.results)
     ? releaseDates.results as JsonObject[]
@@ -27,7 +37,7 @@ function certification(payload: JsonObject): string | null {
   return typeof item?.certification === "string" ? item.certification : null;
 }
 
-function compactMovie(payload: JsonObject) {
+function compactMedia(payload: JsonObject, mediaType: string) {
   const credits = payload.credits as JsonObject | undefined;
   const videos = payload.videos as JsonObject | undefined;
   const cast = Array.isArray(credits?.cast) ? credits.cast as JsonObject[] : [];
@@ -36,15 +46,32 @@ function compactMovie(payload: JsonObject) {
     : [];
   return {
     tmdb_id: payload.id,
-    title: payload.title,
-    original_title: payload.original_title,
+    media_type: mediaType,
+    title: mediaType === "tv" ? payload.name : payload.title,
+    original_title: mediaType === "tv"
+      ? payload.original_name
+      : payload.original_title,
     overview: payload.overview,
-    release_date: payload.release_date || null,
+    release_date: mediaType === "tv"
+      ? payload.first_air_date || null
+      : payload.release_date || null,
     poster_path: payload.poster_path || null,
     backdrop_path: payload.backdrop_path || null,
-    runtime: payload.runtime || null,
+    runtime: mediaType === "tv"
+      ? (Array.isArray(payload.episode_run_time) ? payload.episode_run_time[0] : null)
+      : payload.runtime || null,
     vote_average: payload.vote_average || null,
-    certification: certification(payload),
+    certification: certification(payload, mediaType),
+    number_of_seasons: mediaType === "tv" ? payload.number_of_seasons || null : null,
+    seasons: mediaType === "tv" && Array.isArray(payload.seasons)
+      ? (payload.seasons as JsonObject[])
+        .filter((season) => Number(season.season_number) > 0)
+        .map((season) => ({
+          number: season.season_number,
+          name: season.name,
+          episode_count: season.episode_count,
+        }))
+      : [],
     genres: Array.isArray(payload.genres)
       ? (payload.genres as JsonObject[]).map((genre) => genre.name)
       : [],
@@ -87,32 +114,42 @@ Deno.serve(async (request) => {
       );
     }
     const body = await request.json();
-    const rawIds = Array.isArray(body?.movie_ids)
-      ? body.movie_ids
-      : [body?.movie_id];
-    const movieIds = [...new Set(rawIds)]
-      .filter((id) => Number.isInteger(id) && id > 0)
-      .slice(0, 50) as number[];
-    if (movieIds.length === 0) {
+    const rawItems = Array.isArray(body?.items)
+      ? body.items
+      : (Array.isArray(body?.movie_ids) ? body.movie_ids : [body?.movie_id])
+        .map((id: unknown) => ({ tmdb_id: id, media_type: "movie" }));
+    const items = rawItems
+      .map((item: JsonObject) => ({
+        tmdb_id: Number(item?.tmdb_id),
+        media_type: item?.media_type === "tv" ? "tv" : "movie",
+      }))
+      .filter((item: { tmdb_id: number }) => Number.isInteger(item.tmdb_id) && item.tmdb_id > 0)
+      .filter((item: { tmdb_id: number; media_type: string }, index: number, all: Array<{ tmdb_id: number; media_type: string }>) =>
+        all.findIndex((other) => other.tmdb_id === item.tmdb_id && other.media_type === item.media_type) === index
+      )
+      .slice(0, 50);
+    if (items.length === 0) {
       return Response.json(
         { error: "INVALID_MOVIE_IDS" },
         { status: 400, headers: corsHeaders },
       );
     }
 
-    const movies = await Promise.all(movieIds.map(async (movieId) => {
-      const url = new URL(`https://api.themoviedb.org/3/movie/${movieId}`);
+    const movies = await Promise.all(items.map(async (item) => {
+      const url = new URL(`https://api.themoviedb.org/3/${item.media_type}/${item.tmdb_id}`);
       url.searchParams.set("language", "fr-FR");
       url.searchParams.set(
         "append_to_response",
-        "credits,videos,release_dates",
+        item.media_type === "tv"
+          ? "credits,videos,content_ratings"
+          : "credits,videos,release_dates",
       );
       url.searchParams.set("include_video_language", "fr,en,null");
       const response = await fetch(url, {
         headers: { Authorization: `Bearer ${token}`, Accept: "application/json" },
       });
       if (!response.ok) return null;
-      return compactMovie(await response.json());
+      return compactMedia(await response.json(), item.media_type);
     }));
 
     return Response.json(

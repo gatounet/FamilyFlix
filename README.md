@@ -62,66 +62,6 @@ Application Flutter
                                 └── fiches des acteurs
 ```
 
-## Prérequis
-
-- Flutter compatible avec Dart 3.12 ou supérieur ;
-- un projet Supabase ;
-- un compte développeur TMDB et un jeton d’accès en lecture.
-
-## Installation locale
-
-Clonez le dépôt et installez les dépendances :
-
-```sh
-git clone https://github.com/gatounet/FamilyFlix.git
-cd FamilyFlix
-flutter pub get
-```
-
-Lancez l’application Web :
-
-```sh
-flutter run -d chrome \
-  --dart-define=SUPABASE_URL=https://votre-projet.supabase.co \
-  --dart-define=SUPABASE_PUBLISHABLE_KEY=votre-cle-publiable
-```
-
-Pour Android, remplacez `chrome` par l’identifiant de l’émulateur ou de l’appareil retourné par `flutter devices`.
-
-Une clé publiable Supabase peut être utilisée dans l’application cliente. N’intégrez jamais une clé secrète ou `service_role` dans Flutter.
-
-## Configuration de Supabase
-
-Reliez le projet local à votre projet Supabase, puis appliquez les migrations présentes dans `supabase/migrations` :
-
-```sh
-supabase login
-supabase link --project-ref votre-reference-projet
-supabase db push
-```
-
-Enregistrez le jeton TMDB comme secret côté Supabase :
-
-```sh
-supabase secrets set TMDB_READ_TOKEN=votre-jeton-tmdb
-```
-
-Déployez ensuite les fonctions :
-
-```sh
-supabase functions deploy tmdb-search
-supabase functions deploy tmdb-details
-supabase functions deploy tmdb-person
-```
-
-## Vérifications
-
-```sh
-flutter analyze
-flutter test
-flutter build web
-```
-
 ## Confidentialité et coût
 
 FamilyFlix ne nécessite pas de serveur applicatif dédié. Le projet peut fonctionner dans les limites des offres gratuites de Supabase et TMDB, sous réserve de leurs conditions et quotas respectifs. Les politiques RLS empêchent un utilisateur authentifié de consulter une autre famille.

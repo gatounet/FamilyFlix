@@ -1,0 +1,27 @@
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.idea/
+.metadata
+.packages
+build/
+coverage/
+work/
+*.iml
+*.log
+.DS_Store
+
+# Android
+android/.gradle/
+android/local.properties
+android/key.properties
+*.jks
+
+# Configuration locale et secrets
+.env*
+*.keystore
+supabase/.temp/
+
+# Restes d’un éventuel environnement Web local
+node_modules/
+.next/

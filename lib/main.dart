@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:file_saver/file_saver.dart';
 import 'package:flutter/material.dart';
@@ -112,6 +113,17 @@ class FamilyFlixApp extends StatelessWidget {
     builder: (context, mode, _) => MaterialApp(
       title: 'FamilyFlix',
       debugShowCheckedModeBanner: false,
+      builder: (context, child) {
+        final mediaQuery = MediaQuery.of(context);
+        if (mediaQuery.size.width >= 600) return child!;
+        final userScale = mediaQuery.textScaler.scale(1);
+        return MediaQuery(
+          data: mediaQuery.copyWith(
+            textScaler: TextScaler.linear(userScale * 1.1),
+          ),
+          child: child!,
+        );
+      },
       themeMode: mode,
       theme: _theme(brightness: Brightness.light),
       darkTheme: _theme(brightness: Brightness.dark),
@@ -155,6 +167,15 @@ class _AuthPageState extends State<AuthPage> {
   bool loading = false;
   bool obscurePassword = true;
   String? message;
+
+  void selectMode(bool shouldCreateAccount) {
+    if (loading || createAccount == shouldCreateAccount) return;
+    setState(() {
+      createAccount = shouldCreateAccount;
+      message = null;
+      obscurePassword = true;
+    });
+  }
 
   @override
   void dispose() {
@@ -236,140 +257,174 @@ class _AuthPageState extends State<AuthPage> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    body: SafeArea(
-      child: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(22),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 460),
-            child: Container(
-              padding: const EdgeInsets.all(32),
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: .42),
-                border: Border.all(color: const Color(0x2E171715)),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  const Align(alignment: Alignment.centerLeft, child: Logo()),
-                  const SizedBox(height: 38),
-                  Text(
-                    createAccount
-                        ? 'Rejoindre la famille'
-                        : 'Bon retour parmi nous',
-                    style: const TextStyle(fontFamily: 'Georgia', fontSize: 34),
+  Widget build(BuildContext context) {
+    final mobile = MediaQuery.sizeOf(context).width < 600;
+    return Scaffold(
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: EdgeInsets.all(mobile ? 16 : 22),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 500),
+              child: Container(
+                padding: EdgeInsets.all(mobile ? 22 : 36),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.surface,
+                  border: Border.all(
+                    color: Theme.of(context).colorScheme.outlineVariant,
                   ),
-                  const SizedBox(height: 10),
-                  Text(
-                    createAccount
-                        ? 'Créez votre accès privé à la vidéothèque.'
-                        : 'Connectez-vous pour retrouver vos films.',
-                  ),
-                  const SizedBox(height: 30),
-                  if (createAccount) ...[
+                  borderRadius: BorderRadius.circular(18),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Color(0x12000000),
+                      blurRadius: 30,
+                      offset: Offset(0, 12),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    const Align(alignment: Alignment.center, child: Logo()),
+                    const SizedBox(height: 30),
+                    SegmentedButton<bool>(
+                      segments: const [
+                        ButtonSegment(
+                          value: false,
+                          icon: Icon(Icons.login),
+                          label: Text('Connexion'),
+                        ),
+                        ButtonSegment(
+                          value: true,
+                          icon: Icon(Icons.person_add_alt_1_outlined),
+                          label: Text('Créer un compte'),
+                        ),
+                      ],
+                      selected: {createAccount},
+                      onSelectionChanged: (selection) =>
+                          selectMode(selection.first),
+                      showSelectedIcon: false,
+                    ),
+                    const SizedBox(height: 34),
+                    Text(
+                      createAccount
+                          ? 'Créer votre accès'
+                          : 'Heureux de vous revoir',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        fontFamily: 'Georgia',
+                        fontSize: mobile ? 32 : 36,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      createAccount
+                          ? 'Créez votre compte, puis créez ou rejoignez votre famille.'
+                          : 'Connectez-vous pour retrouver la vidéothèque de votre famille.',
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: 30),
+                    if (createAccount) ...[
+                      TextField(
+                        controller: nameController,
+                        textInputAction: TextInputAction.next,
+                        autofillHints: const [AutofillHints.name],
+                        decoration: const InputDecoration(
+                          labelText: 'Nom affiché',
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                    ],
                     TextField(
-                      controller: nameController,
+                      controller: emailController,
+                      keyboardType: TextInputType.emailAddress,
                       textInputAction: TextInputAction.next,
-                      autofillHints: const [AutofillHints.name],
+                      autofillHints: const [AutofillHints.email],
                       decoration: const InputDecoration(
-                        labelText: 'Nom affiché',
+                        labelText: 'Adresse e-mail',
                       ),
                     ),
                     const SizedBox(height: 14),
-                  ],
-                  TextField(
-                    controller: emailController,
-                    keyboardType: TextInputType.emailAddress,
-                    textInputAction: TextInputAction.next,
-                    autofillHints: const [AutofillHints.email],
-                    decoration: const InputDecoration(
-                      labelText: 'Adresse e-mail',
-                    ),
-                  ),
-                  const SizedBox(height: 14),
-                  TextField(
-                    controller: passwordController,
-                    obscureText: obscurePassword,
-                    onSubmitted: (_) => loading ? null : submit(),
-                    autofillHints: createAccount
-                        ? const [AutofillHints.newPassword]
-                        : const [AutofillHints.password],
-                    decoration: InputDecoration(
-                      labelText: 'Mot de passe',
-                      helperText: createAccount ? '8 caractères minimum' : null,
-                      suffixIcon: IconButton(
-                        onPressed: () =>
-                            setState(() => obscurePassword = !obscurePassword),
-                        icon: Icon(
-                          obscurePassword
-                              ? Icons.visibility_outlined
-                              : Icons.visibility_off_outlined,
+                    TextField(
+                      controller: passwordController,
+                      obscureText: obscurePassword,
+                      onSubmitted: (_) => loading ? null : submit(),
+                      autofillHints: createAccount
+                          ? const [AutofillHints.newPassword]
+                          : const [AutofillHints.password],
+                      decoration: InputDecoration(
+                        labelText: 'Mot de passe',
+                        helperText: createAccount
+                            ? '8 caractères minimum'
+                            : null,
+                        suffixIcon: IconButton(
+                          onPressed: () => setState(
+                            () => obscurePassword = !obscurePassword,
+                          ),
+                          icon: Icon(
+                            obscurePassword
+                                ? Icons.visibility_outlined
+                                : Icons.visibility_off_outlined,
+                          ),
+                          tooltip: obscurePassword
+                              ? 'Afficher le mot de passe'
+                              : 'Masquer le mot de passe',
                         ),
-                        tooltip: obscurePassword
-                            ? 'Afficher le mot de passe'
-                            : 'Masquer le mot de passe',
                       ),
                     ),
-                  ),
-                  if (message != null) ...[
+                    if (message != null) ...[
+                      const SizedBox(height: 18),
+                      Text(
+                        message!,
+                        style: const TextStyle(
+                          color: Color(0xFF8B2F1D),
+                          height: 1.4,
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 26),
+                    FilledButton(
+                      onPressed: loading ? null : submit,
+                      style: FilledButton.styleFrom(
+                        backgroundColor: ink,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 18),
+                        shape: const RoundedRectangleBorder(
+                          borderRadius: BorderRadius.all(Radius.circular(3)),
+                        ),
+                      ),
+                      child: loading
+                          ? const SizedBox.square(
+                              dimension: 20,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : Text(
+                              createAccount
+                                  ? 'Créer mon compte'
+                                  : 'Se connecter',
+                            ),
+                    ),
                     const SizedBox(height: 18),
                     Text(
-                      message!,
-                      style: const TextStyle(
-                        color: Color(0xFF8B2F1D),
-                        height: 1.4,
-                      ),
+                      createAccount
+                          ? 'Après l’inscription, vous pourrez créer une famille ou en rejoindre une existante.'
+                          : 'Votre collection reste privée et accessible uniquement aux membres de votre famille.',
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.bodySmall,
                     ),
                   ],
-                  const SizedBox(height: 26),
-                  FilledButton(
-                    onPressed: loading ? null : submit,
-                    style: FilledButton.styleFrom(
-                      backgroundColor: ink,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 18),
-                      shape: const RoundedRectangleBorder(
-                        borderRadius: BorderRadius.all(Radius.circular(3)),
-                      ),
-                    ),
-                    child: loading
-                        ? const SizedBox.square(
-                            dimension: 20,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: Colors.white,
-                            ),
-                          )
-                        : Text(
-                            createAccount ? 'Créer mon compte' : 'Se connecter',
-                          ),
-                  ),
-                  const SizedBox(height: 12),
-                  TextButton(
-                    onPressed: loading
-                        ? null
-                        : () => setState(() {
-                            createAccount = !createAccount;
-                            message = null;
-                          }),
-                    style: TextButton.styleFrom(
-                      foregroundColor: Theme.of(context).colorScheme.onSurface,
-                    ),
-                    child: Text(
-                      createAccount
-                          ? 'J’ai déjà un compte'
-                          : 'Créer un compte familial',
-                    ),
-                  ),
-                ],
+                ),
               ),
             ),
           ),
         ),
       ),
-    ),
-  );
+    );
+  }
 }
 
 class HouseholdGate extends StatefulWidget {
@@ -894,16 +949,16 @@ class HomePage extends StatelessWidget {
               memberName: household?.displayName,
               familyName: household?.name,
               filmCount: household?.filmCount ?? 0,
+              onManageFamily:
+                  household?.role == 'owner' || household?.role == 'admin'
+                  ? () => openFamilyAccess(context)
+                  : null,
             ),
           ),
           SliverToBoxAdapter(
             child: HeroSection(
               onAdd: () => openMovieSearch(context),
               onManageSources: () => openMediaSources(context),
-              onManageFamily:
-                  household?.role == 'owner' || household?.role == 'admin'
-                  ? () => openFamilyAccess(context)
-                  : null,
             ),
           ),
           SliverToBoxAdapter(
@@ -2258,12 +2313,109 @@ class Header extends StatelessWidget {
     this.memberName,
     this.familyName,
     this.filmCount = 0,
+    this.onManageFamily,
   });
   final VoidCallback onLogin;
   final bool authenticated;
   final String? memberName;
   final String? familyName;
   final int filmCount;
+  final VoidCallback? onManageFamily;
+
+  void _selectAccountAction(BuildContext context, String action) {
+    if (action == 'logout') {
+      onLogin();
+      return;
+    }
+    if (action == 'family') {
+      onManageFamily?.call();
+      return;
+    }
+    final selectedTheme = switch (action) {
+      'theme-light' => ThemeMode.light,
+      'theme-dark' => ThemeMode.dark,
+      _ => ThemeMode.system,
+    };
+    selectTheme(selectedTheme);
+  }
+
+  List<PopupMenuEntry<String>> _accountMenu(BuildContext context) => [
+    PopupMenuItem<String>(
+      enabled: false,
+      child: SizedBox(
+        width: 240,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              memberName ?? 'Compte FamilyFlix',
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurface,
+                fontSize: 17,
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            if (familyName != null) ...[
+              const SizedBox(height: 3),
+              Text(
+                familyName!,
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+            const SizedBox(height: 3),
+            Text('$filmCount contenu${filmCount > 1 ? 's' : ''}'),
+          ],
+        ),
+      ),
+    ),
+    const PopupMenuDivider(),
+    if (onManageFamily != null) ...[
+      const PopupMenuItem(
+        value: 'family',
+        child: ListTile(
+          contentPadding: EdgeInsets.zero,
+          leading: Icon(Icons.manage_accounts_outlined),
+          title: Text('Gérer la famille'),
+        ),
+      ),
+      const PopupMenuDivider(),
+    ],
+    const PopupMenuItem(
+      value: 'theme-system',
+      child: ListTile(
+        contentPadding: EdgeInsets.zero,
+        leading: Icon(Icons.brightness_auto_outlined),
+        title: Text('Thème du système'),
+      ),
+    ),
+    const PopupMenuItem(
+      value: 'theme-light',
+      child: ListTile(
+        contentPadding: EdgeInsets.zero,
+        leading: Icon(Icons.light_mode_outlined),
+        title: Text('Thème clair'),
+      ),
+    ),
+    const PopupMenuItem(
+      value: 'theme-dark',
+      child: ListTile(
+        contentPadding: EdgeInsets.zero,
+        leading: Icon(Icons.dark_mode_outlined),
+        title: Text('Thème sombre'),
+      ),
+    ),
+    const PopupMenuDivider(),
+    const PopupMenuItem(
+      value: 'logout',
+      child: ListTile(
+        contentPadding: EdgeInsets.zero,
+        leading: Icon(Icons.logout),
+        title: Text('Se déconnecter'),
+      ),
+    ),
+  ];
 
   @override
   Widget build(BuildContext context) => PageWidth(
@@ -2276,37 +2428,37 @@ class Header extends StatelessWidget {
         children: [
           const Logo(),
           const Spacer(),
-          ValueListenableBuilder<ThemeMode>(
-            valueListenable: themeMode,
-            builder: (context, mode, _) => PopupMenuButton<ThemeMode>(
-              tooltip: 'Choisir le thème',
-              initialValue: mode,
-              onSelected: selectTheme,
-              icon: Icon(
-                mode == ThemeMode.dark
-                    ? Icons.dark_mode_outlined
-                    : mode == ThemeMode.light
-                    ? Icons.light_mode_outlined
-                    : Icons.brightness_auto_outlined,
+          if (!authenticated)
+            ValueListenableBuilder<ThemeMode>(
+              valueListenable: themeMode,
+              builder: (context, mode, _) => PopupMenuButton<ThemeMode>(
+                tooltip: 'Choisir le thème',
+                initialValue: mode,
+                onSelected: selectTheme,
+                icon: Icon(
+                  mode == ThemeMode.dark
+                      ? Icons.dark_mode_outlined
+                      : mode == ThemeMode.light
+                      ? Icons.light_mode_outlined
+                      : Icons.brightness_auto_outlined,
+                ),
+                itemBuilder: (_) => const [
+                  PopupMenuItem(
+                    value: ThemeMode.system,
+                    child: Text('Thème du système'),
+                  ),
+                  PopupMenuItem(
+                    value: ThemeMode.light,
+                    child: Text('Thème clair'),
+                  ),
+                  PopupMenuItem(
+                    value: ThemeMode.dark,
+                    child: Text('Thème sombre'),
+                  ),
+                ],
               ),
-              itemBuilder: (_) => const [
-                PopupMenuItem(
-                  value: ThemeMode.system,
-                  child: Text('Thème du système'),
-                ),
-                PopupMenuItem(
-                  value: ThemeMode.light,
-                  child: Text('Thème clair'),
-                ),
-                PopupMenuItem(
-                  value: ThemeMode.dark,
-                  child: Text('Thème sombre'),
-                ),
-              ],
             ),
-          ),
-          const SizedBox(width: 4),
-          if (MediaQuery.sizeOf(context).width > 520)
+          if (!authenticated && MediaQuery.sizeOf(context).width > 420)
             TextButton(
               onPressed: onLogin,
               style: TextButton.styleFrom(
@@ -2317,45 +2469,31 @@ class Header extends StatelessWidget {
                 style: const TextStyle(fontWeight: FontWeight.w800),
               ),
             ),
-          const SizedBox(width: 12),
-          if (memberName != null &&
-              MediaQuery.sizeOf(context).width <= 720) ...[
-            ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 92),
-              child: Text(
-                memberName!,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontWeight: FontWeight.w800),
+          if (authenticated) ...[
+            if (memberName != null && MediaQuery.sizeOf(context).width > 620)
+              Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: Text(
+                  memberName!,
+                  style: const TextStyle(fontWeight: FontWeight.w900),
+                ),
+              ),
+            PopupMenuButton<String>(
+              tooltip: 'Ouvrir le menu du compte',
+              onSelected: (action) => _selectAccountAction(context, action),
+              itemBuilder: _accountMenu,
+              child: Padding(
+                padding: const EdgeInsets.all(4),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    FamilyAvatar(filmCount: filmCount, size: 48),
+                    const Icon(Icons.arrow_drop_down),
+                  ],
+                ),
               ),
             ),
-            const SizedBox(width: 10),
           ],
-          if ((memberName != null || familyName != null) &&
-              MediaQuery.sizeOf(context).width > 720) ...[
-            Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(
-                  memberName ?? familyName!,
-                  style: const TextStyle(fontWeight: FontWeight.w800),
-                ),
-                Text(
-                  [
-                    ?familyName,
-                    '$filmCount contenu${filmCount > 1 ? 's' : ''}',
-                  ].join(' · '),
-                  style: const TextStyle(
-                    fontSize: 11,
-                    color: Color(0xFF77736B),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(width: 10),
-          ],
-          FamilyAvatar(filmCount: filmCount, size: 42),
         ],
       ),
     ),
@@ -2444,25 +2582,28 @@ class Logo extends StatelessWidget {
   const Logo({super.key});
 
   @override
-  Widget build(BuildContext context) => Text.rich(
-    TextSpan(
-      children: [
-        TextSpan(
-          text: 'Family',
-          style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
-        ),
-        const TextSpan(
-          text: 'Flix',
-          style: TextStyle(color: accent),
-        ),
-      ],
-    ),
-    style: const TextStyle(
-      fontSize: 25,
-      fontWeight: FontWeight.w900,
-      letterSpacing: -1.4,
-    ),
-  );
+  Widget build(BuildContext context) {
+    final mobile = MediaQuery.sizeOf(context).width < 600;
+    return Text.rich(
+      TextSpan(
+        children: [
+          TextSpan(
+            text: 'Family',
+            style: TextStyle(color: Theme.of(context).colorScheme.onSurface),
+          ),
+          const TextSpan(
+            text: 'Flix',
+            style: TextStyle(color: accent),
+          ),
+        ],
+      ),
+      style: TextStyle(
+        fontSize: mobile ? 29 : 36,
+        fontWeight: FontWeight.w900,
+        letterSpacing: -1.4,
+      ),
+    );
+  }
 }
 
 class HeroSection extends StatelessWidget {
@@ -2470,11 +2611,9 @@ class HeroSection extends StatelessWidget {
     super.key,
     required this.onAdd,
     required this.onManageSources,
-    this.onManageFamily,
   });
   final VoidCallback onAdd;
   final VoidCallback onManageSources;
-  final VoidCallback? onManageFamily;
 
   @override
   Widget build(BuildContext context) {
@@ -2524,20 +2663,27 @@ class HeroSection extends StatelessWidget {
               spacing: 12,
               runSpacing: 12,
               children: [
-                FilledButton.icon(
+                FilledButton(
                   onPressed: onAdd,
-                  icon: const Icon(Icons.add, size: 19),
-                  label: const Text('Ajouter un film ou une série'),
                   style: FilledButton.styleFrom(
                     backgroundColor: ink,
                     foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 22,
+                    padding: EdgeInsets.symmetric(
+                      horizontal: mobile ? 12 : 22,
                       vertical: 18,
                     ),
                     shape: const RoundedRectangleBorder(
                       borderRadius: BorderRadius.all(Radius.circular(3)),
                     ),
+                  ),
+                  child: const Wrap(
+                    alignment: WrapAlignment.center,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    spacing: 8,
+                    children: [
+                      Icon(Icons.add, size: 19),
+                      Text('Ajouter un film ou une série'),
+                    ],
                   ),
                 ),
                 OutlinedButton(
@@ -2557,12 +2703,6 @@ class HeroSection extends StatelessWidget {
                   ),
                   child: const Text('Supports de la famille'),
                 ),
-                if (onManageFamily != null)
-                  OutlinedButton.icon(
-                    onPressed: onManageFamily,
-                    icon: const Icon(Icons.group_outlined),
-                    label: const Text('Gérer la famille'),
-                  ),
               ],
             ),
           ],
@@ -2654,6 +2794,7 @@ class _FamilyLibraryState extends State<FamilyLibrary> {
   String ageFilter = 'all';
   String yearFilter = 'all';
   String sortOrder = 'recent';
+  String titleQuery = '';
 
   @override
   void initState() {
@@ -2761,6 +2902,9 @@ class _FamilyLibraryState extends State<FamilyLibrary> {
 
   List<LibraryMovie> get filteredCopies {
     final result = copies.where((movie) {
+      final titleMatches =
+          titleQuery.trim().isEmpty ||
+          movie.title.toLowerCase().contains(titleQuery.trim().toLowerCase());
       final mediaTypeMatches =
           mediaTypeFilter == 'all' || movie.mediaType == mediaTypeFilter;
       final formatMatches =
@@ -2769,7 +2913,8 @@ class _FamilyLibraryState extends State<FamilyLibrary> {
           genreFilter == 'all' || movie.genres.contains(genreFilter);
       final ageMatches = ageFilter == 'all' || movie.ageCategory == ageFilter;
       final yearMatches = yearFilter == 'all' || movie.year == yearFilter;
-      return mediaTypeMatches &&
+      return titleMatches &&
+          mediaTypeMatches &&
           formatMatches &&
           genreMatches &&
           ageMatches &&
@@ -2905,6 +3050,84 @@ class _FamilyLibraryState extends State<FamilyLibrary> {
                   if (copies.isEmpty)
                     EmptyLibraryMessage(onAdd: widget.onAdd)
                   else ...[
+                    Autocomplete<String>(
+                      optionsBuilder: (value) {
+                        final query = value.text.trim().toLowerCase();
+                        if (query.isEmpty) {
+                          return const Iterable<String>.empty();
+                        }
+                        return copies
+                            .map((movie) => movie.title)
+                            .toSet()
+                            .where(
+                              (title) => title.toLowerCase().contains(query),
+                            )
+                            .take(8);
+                      },
+                      onSelected: (title) => setState(() => titleQuery = title),
+                      fieldViewBuilder:
+                          (context, controller, focusNode, onSubmitted) {
+                            return TextField(
+                              controller: controller,
+                              focusNode: focusNode,
+                              style: const TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.w700,
+                              ),
+                              onChanged: (value) =>
+                                  setState(() => titleQuery = value),
+                              onSubmitted: (_) => onSubmitted(),
+                              decoration: InputDecoration(
+                                labelText: 'Rechercher dans la vidéothèque',
+                                hintText: 'Commencez à saisir le titre…',
+                                prefixIcon: const Icon(Icons.search, size: 30),
+                                suffixIcon: titleQuery.isEmpty
+                                    ? null
+                                    : IconButton(
+                                        tooltip: 'Effacer la recherche',
+                                        onPressed: () {
+                                          controller.clear();
+                                          setState(() => titleQuery = '');
+                                        },
+                                        icon: const Icon(Icons.close),
+                                      ),
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 20,
+                                  vertical: 22,
+                                ),
+                              ),
+                            );
+                          },
+                      optionsViewBuilder: (context, onSelected, options) =>
+                          Align(
+                            alignment: Alignment.topLeft,
+                            child: Material(
+                              elevation: 8,
+                              borderRadius: BorderRadius.circular(8),
+                              child: ConstrainedBox(
+                                constraints: const BoxConstraints(
+                                  maxWidth: 620,
+                                  maxHeight: 340,
+                                ),
+                                child: ListView(
+                                  padding: EdgeInsets.zero,
+                                  shrinkWrap: true,
+                                  children: [
+                                    for (final title in options)
+                                      ListTile(
+                                        leading: const Icon(
+                                          Icons.movie_outlined,
+                                        ),
+                                        title: Text(title),
+                                        onTap: () => onSelected(title),
+                                      ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                    ),
+                    const SizedBox(height: 18),
                     LibraryFilters(
                       mediaType: mediaTypeFilter,
                       format: formatFilter,
@@ -2995,6 +3218,13 @@ class FamilyCatalogPageState extends State<FamilyCatalogPage> {
   String sort = 'title';
   bool exporting = false;
 
+  static String formatPrintDate(DateTime date) {
+    final localDate = date.toLocal();
+    final day = localDate.day.toString().padLeft(2, '0');
+    final month = localDate.month.toString().padLeft(2, '0');
+    return '$day/$month/${localDate.year}';
+  }
+
   List<String> get genres =>
       widget.movies.expand((movie) => movie.genres).toSet().toList()..sort();
   List<String> get ages =>
@@ -3080,6 +3310,7 @@ class FamilyCatalogPageState extends State<FamilyCatalogPage> {
   }
 
   Future<Uint8List> buildPdf(PdfPageFormat format) async {
+    final printDate = formatPrintDate(DateTime.now());
     final regularFont = pw.Font.ttf(
       await rootBundle.load('assets/fonts/Roboto-Regular.ttf'),
     );
@@ -3119,6 +3350,14 @@ class FamilyCatalogPageState extends State<FamilyCatalogPage> {
             ),
             pw.Text(
               'Catalogue de ${widget.household.name} - ${rows.length} contenu${rows.length > 1 ? 's' : ''}',
+            ),
+            pw.SizedBox(height: 3),
+            pw.Text(
+              'Imprimé le $printDate',
+              style: pw.TextStyle(
+                fontSize: 9,
+                color: PdfColor.fromHex('#5D5A53'),
+              ),
             ),
             pw.SizedBox(height: 12),
           ],
@@ -3244,30 +3483,50 @@ class FamilyCatalogPageState extends State<FamilyCatalogPage> {
               child: SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
                 child: DataTable(
+                  horizontalMargin: 16,
+                  columnSpacing: 24,
                   columns: const [
-                    DataColumn(label: Text('Titre')),
+                    DataColumn(
+                      label: SizedBox(width: 220, child: Text('Titre')),
+                    ),
                     DataColumn(label: Text('Type')),
                     DataColumn(label: Text('Année')),
                     DataColumn(label: Text('Propriétaire')),
                     DataColumn(label: Text('Support')),
                     DataColumn(label: Text('Emplacement')),
-                    DataColumn(label: Text('Possession')),
+                    DataColumn(
+                      label: SizedBox(width: 150, child: Text('Possession')),
+                    ),
                   ],
                   rows: [
                     for (final movie in filteredMovies)
                       DataRow(
                         cells: [
-                          DataCell(Text(movie.title)),
+                          DataCell(
+                            SizedBox(
+                              width: 220,
+                              child: Text(
+                                movie.title,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ),
                           DataCell(Text(movie.typeLabel)),
                           DataCell(Text(movie.year)),
                           DataCell(Text(movie.member)),
                           DataCell(Text(movie.formatLabel)),
                           DataCell(Text(movie.sourceName)),
                           DataCell(
-                            Text(
-                              movie.isSeries
-                                  ? movie.ownershipLabel
-                                  : 'Film complet',
+                            SizedBox(
+                              width: 150,
+                              child: Text(
+                                movie.isSeries
+                                    ? movie.ownershipLabel
+                                    : 'Film complet',
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                              ),
                             ),
                           ),
                         ],
@@ -3423,7 +3682,7 @@ class LibraryFilters extends StatelessWidget {
   );
 }
 
-class MovieStrip extends StatelessWidget {
+class MovieStrip extends StatefulWidget {
   const MovieStrip({
     super.key,
     required this.movies,
@@ -3439,25 +3698,125 @@ class MovieStrip extends StatelessWidget {
   final Future<void> Function(LibraryMovie movie)? onOpen;
 
   @override
+  State<MovieStrip> createState() => MovieStripState();
+}
+
+class MovieStripState extends State<MovieStrip> {
+  final ScrollController scrollController = ScrollController();
+  bool canScrollLeft = false;
+  bool canScrollRight = false;
+
+  @override
+  void initState() {
+    super.initState();
+    scrollController.addListener(updateButtons);
+    WidgetsBinding.instance.addPostFrameCallback((_) => updateButtons());
+  }
+
+  @override
+  void didUpdateWidget(covariant MovieStrip oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    WidgetsBinding.instance.addPostFrameCallback((_) => updateButtons());
+  }
+
+  @override
+  void dispose() {
+    scrollController
+      ..removeListener(updateButtons)
+      ..dispose();
+    super.dispose();
+  }
+
+  void updateButtons() {
+    if (!mounted || !scrollController.hasClients) return;
+    final position = scrollController.position;
+    final left = position.pixels > position.minScrollExtent + 2;
+    final right = position.pixels < position.maxScrollExtent - 2;
+    if (left != canScrollLeft || right != canScrollRight) {
+      setState(() {
+        canScrollLeft = left;
+        canScrollRight = right;
+      });
+    }
+  }
+
+  Future<void> scrollBy(int direction) async {
+    if (!scrollController.hasClients) return;
+    final position = scrollController.position;
+    final distance = position.viewportDimension * .82 * direction;
+    final target = (position.pixels + distance).clamp(
+      position.minScrollExtent,
+      position.maxScrollExtent,
+    );
+    await scrollController.animateTo(
+      target,
+      duration: const Duration(milliseconds: 420),
+      curve: Curves.easeOutCubic,
+    );
+  }
+
+  Widget arrowButton({
+    required bool left,
+    required bool enabled,
+    required double size,
+  }) => Material(
+    color: Theme.of(context).colorScheme.surface.withValues(alpha: .94),
+    elevation: enabled ? 5 : 0,
+    shape: const CircleBorder(),
+    child: IconButton(
+      tooltip: left ? 'Films précédents' : 'Films suivants',
+      onPressed: enabled ? () => scrollBy(left ? -1 : 1) : null,
+      icon: Icon(left ? Icons.chevron_left : Icons.chevron_right),
+      iconSize: 30,
+      constraints: BoxConstraints.tightFor(width: size, height: size),
+    ),
+  );
+
+  @override
   Widget build(BuildContext context) {
     final mobile = MediaQuery.sizeOf(context).width < 600;
-    return SizedBox(
-      height: mobile ? 342 : 300,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        itemCount: movies.length,
-        separatorBuilder: (_, _) => const SizedBox(width: 16),
-        itemBuilder: (context, index) => SizedBox(
-          width: mobile ? 172 : 145,
-          child: LibraryMovieCard(
-            movie: movies[index],
-            canDeleteAny: canDeleteAny,
-            wish: wish,
-            onDelete: onDelete,
-            onOpen: onOpen,
+    final arrowSize = mobile ? 48.0 : 52.0;
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        SizedBox(
+          height: mobile ? 342 : 300,
+          child: ListView.separated(
+            controller: scrollController,
+            scrollDirection: Axis.horizontal,
+            physics: const BouncingScrollPhysics(),
+            padding: EdgeInsets.symmetric(horizontal: arrowSize * .72),
+            itemCount: widget.movies.length,
+            separatorBuilder: (_, _) => const SizedBox(width: 16),
+            itemBuilder: (context, index) => SizedBox(
+              width: mobile ? 172 : 145,
+              child: LibraryMovieCard(
+                movie: widget.movies[index],
+                canDeleteAny: widget.canDeleteAny,
+                wish: widget.wish,
+                onDelete: widget.onDelete,
+                onOpen: widget.onOpen,
+              ),
+            ),
           ),
         ),
-      ),
+        Positioned(
+          left: 0,
+          child: arrowButton(
+            left: true,
+            enabled: canScrollLeft,
+            size: arrowSize,
+          ),
+        ),
+        Positioned(
+          right: 0,
+          child: arrowButton(
+            left: false,
+            enabled: canScrollRight,
+            size: arrowSize,
+          ),
+        ),
+      ],
     );
   }
 }
@@ -3664,6 +4023,8 @@ class LibraryMovie {
   };
   String? get posterUrl =>
       posterPath == null ? null : 'https://image.tmdb.org/t/p/w342$posterPath';
+  String? get printPosterUrl =>
+      posterPath == null ? null : 'https://image.tmdb.org/t/p/w780$posterPath';
   String get formatLabel => switch (format) {
     'dvd' => 'DVD',
     'bluray' => 'Blu-ray',
@@ -4204,6 +4565,257 @@ class _ActorDetailDialogState extends State<ActorDetailDialog> {
   }
 }
 
+class DvdCoverPdf {
+  static const double backWidthMm = 129;
+  static const double spineWidthMm = 15;
+  static const double frontWidthMm = 129;
+  static const double coverHeightMm = 183;
+
+  static Future<Uint8List> build(
+    LibraryMovie movie, {
+    pw.ImageProvider? poster,
+  }) async {
+    final regularFont = pw.Font.ttf(
+      await rootBundle.load('assets/fonts/Roboto-Regular.ttf'),
+    );
+    final boldFont = pw.Font.ttf(
+      await rootBundle.load('assets/fonts/Roboto-Medium.ttf'),
+    );
+    final document = pw.Document(
+      title: 'Jaquette DVD - ${movie.title}',
+      author: 'FamilyFlix',
+      theme: pw.ThemeData.withFont(base: regularFont, bold: boldFont),
+    );
+    const pageFormat = PdfPageFormat.a4;
+    final mm = PdfPageFormat.mm;
+    final coverWidth = (backWidthMm + spineWidthMm + frontWidthMm) * mm;
+    final coverHeight = coverHeightMm * mm;
+    final overview = movie.details?.overview.isNotEmpty == true
+        ? movie.details!.overview
+        : movie.overview;
+    final metadata = [
+      movie.typeLabel,
+      if (movie.year.isNotEmpty) movie.year,
+      if (movie.details?.runtime != null) '${movie.details!.runtime} min',
+      ...movie.genres.take(3),
+    ].join(' • ');
+
+    document.addPage(
+      pw.Page(
+        pageFormat: pageFormat.landscape,
+        margin: pw.EdgeInsets.zero,
+        build: (_) => pw.Stack(
+          children: [
+            pw.Center(
+              child: pw.Container(
+                width: coverWidth,
+                height: coverHeight,
+                decoration: pw.BoxDecoration(
+                  border: pw.Border.all(
+                    color: PdfColor.fromHex('#171715'),
+                    width: .7,
+                  ),
+                ),
+                child: pw.Row(
+                  children: [
+                    _backPanel(
+                      movie,
+                      overview: overview,
+                      metadata: metadata,
+                      width: backWidthMm * mm,
+                    ),
+                    _spine(movie, width: spineWidthMm * mm),
+                    _frontPanel(
+                      movie,
+                      poster: poster,
+                      width: frontWidthMm * mm,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            pw.Positioned(
+              left: 0,
+              right: 0,
+              bottom: 3.5 * mm,
+              child: pw.Text(
+                'Imprimer en taille réelle (100 %) - découper le contour - plier aux deux lignes de la tranche',
+                textAlign: pw.TextAlign.center,
+                style: pw.TextStyle(
+                  fontSize: 7,
+                  color: PdfColor.fromHex('#5D5A53'),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+    return document.save();
+  }
+
+  static pw.Widget _backPanel(
+    LibraryMovie movie, {
+    required String overview,
+    required String metadata,
+    required double width,
+  }) => pw.Container(
+    width: width,
+    height: double.infinity,
+    padding: const pw.EdgeInsets.all(22),
+    color: PdfColor.fromHex('#F3F0E8'),
+    child: pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      children: [
+        pw.Text(
+          'FAMILYFLIX',
+          style: pw.TextStyle(
+            color: PdfColor.fromHex('#E84E2C'),
+            fontSize: 10,
+            fontWeight: pw.FontWeight.bold,
+            letterSpacing: 2,
+          ),
+        ),
+        pw.SizedBox(height: 12),
+        pw.Text(
+          movie.title,
+          maxLines: 3,
+          style: pw.TextStyle(fontSize: 23, fontWeight: pw.FontWeight.bold),
+        ),
+        if (metadata.isNotEmpty) ...[
+          pw.SizedBox(height: 7),
+          pw.Text(
+            metadata,
+            style: pw.TextStyle(
+              fontSize: 9,
+              color: PdfColor.fromHex('#5D5A53'),
+            ),
+          ),
+        ],
+        pw.SizedBox(height: 20),
+        pw.Container(width: 28, height: 2, color: PdfColor.fromHex('#E84E2C')),
+        pw.SizedBox(height: 14),
+        pw.Text(
+          'SYNOPSIS',
+          style: pw.TextStyle(fontSize: 10, fontWeight: pw.FontWeight.bold),
+        ),
+        pw.SizedBox(height: 7),
+        pw.Text(
+          overview.isEmpty
+              ? 'Aucun synopsis disponible pour ce contenu.'
+              : overview,
+          maxLines: 18,
+          style: const pw.TextStyle(fontSize: 9.5, lineSpacing: 2.5),
+        ),
+        pw.Spacer(),
+        pw.Text(
+          [
+            if (movie.member.isNotEmpty) 'Collection de ${movie.member}',
+            if (movie.formatLabel.isNotEmpty) movie.formatLabel,
+            if (movie.sourceName.isNotEmpty) movie.sourceName,
+          ].join(' • '),
+          style: pw.TextStyle(fontSize: 8, color: PdfColor.fromHex('#5D5A53')),
+        ),
+      ],
+    ),
+  );
+
+  static pw.Widget _spine(LibraryMovie movie, {required double width}) =>
+      pw.Container(
+        width: width,
+        height: double.infinity,
+        decoration: pw.BoxDecoration(
+          color: PdfColor.fromHex('#171715'),
+          border: pw.Border.symmetric(
+            vertical: pw.BorderSide(
+              color: PdfColor.fromHex('#E84E2C'),
+              width: .7,
+            ),
+          ),
+        ),
+        child: pw.Center(
+          child: pw.Transform.rotate(
+            angle: math.pi / 2,
+            child: pw.SizedBox(
+              width: coverHeightMm * PdfPageFormat.mm - 36,
+              child: pw.FittedBox(
+                fit: pw.BoxFit.scaleDown,
+                child: pw.Text(
+                  movie.title.toUpperCase(),
+                  maxLines: 1,
+                  style: pw.TextStyle(
+                    color: PdfColors.white,
+                    fontSize: 12,
+                    fontWeight: pw.FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+  static pw.Widget _frontPanel(
+    LibraryMovie movie, {
+    required pw.ImageProvider? poster,
+    required double width,
+  }) => pw.Container(
+    width: width,
+    height: double.infinity,
+    color: PdfColor.fromHex('#285574'),
+    child: pw.Stack(
+      children: [
+        if (poster != null)
+          pw.Positioned.fill(child: pw.Image(poster, fit: pw.BoxFit.cover))
+        else
+          pw.Center(
+            child: pw.Text(
+              'FAMILYFLIX',
+              style: pw.TextStyle(
+                color: PdfColors.white,
+                fontSize: 28,
+                fontWeight: pw.FontWeight.bold,
+              ),
+            ),
+          ),
+        pw.Positioned(
+          left: 0,
+          right: 0,
+          bottom: 0,
+          child: pw.Container(
+            color: const PdfColor(0, 0, 0, .82),
+            padding: const pw.EdgeInsets.fromLTRB(18, 14, 18, 16),
+            child: pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Text(
+                  movie.title,
+                  maxLines: 3,
+                  style: pw.TextStyle(
+                    color: PdfColors.white,
+                    fontSize: 22,
+                    fontWeight: pw.FontWeight.bold,
+                  ),
+                ),
+                if (movie.year.isNotEmpty) ...[
+                  pw.SizedBox(height: 4),
+                  pw.Text(
+                    movie.year,
+                    style: const pw.TextStyle(
+                      color: PdfColors.white,
+                      fontSize: 10,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
 class MovieDetailPage extends StatefulWidget {
   const MovieDetailPage({
     super.key,
@@ -4225,6 +4837,7 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
   bool favorite = false;
   bool loading = true;
   bool saving = false;
+  bool printingCover = false;
   String? error;
 
   @override
@@ -4324,6 +4937,27 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
     await load();
   }
 
+  Future<void> printDvdCover() async {
+    setState(() => printingCover = true);
+    try {
+      pw.ImageProvider? poster;
+      if (widget.movie.printPosterUrl != null) {
+        try {
+          poster = await networkImage(widget.movie.printPosterUrl!);
+        } catch (_) {
+          // Une jaquette sans affiche reste imprimable si TMDB est indisponible.
+        }
+      }
+      final coverPoster = poster;
+      await Printing.layoutPdf(
+        name: 'jaquette-dvd-${widget.movie.title}.pdf',
+        onLayout: (_) => DvdCoverPdf.build(widget.movie, poster: coverPoster),
+      );
+    } finally {
+      if (mounted) setState(() => printingCover = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
@@ -4336,6 +4970,24 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
           : ListView(
               padding: const EdgeInsets.symmetric(vertical: 24),
               children: [
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: FilledButton.icon(
+                    onPressed: printingCover ? null : printDvdCover,
+                    icon: printingCover
+                        ? const SizedBox.square(
+                            dimension: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.print_outlined),
+                    label: Text(
+                      printingCover
+                          ? 'Préparation de la jaquette…'
+                          : 'Imprimer la jaquette DVD',
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 18),
                 MoviePresentation(movie: widget.movie),
                 const Divider(height: 64),
                 const Text(
@@ -4660,57 +5312,204 @@ class FreePromise extends StatelessWidget {
     ).push<void>(MaterialPageRoute(builder: (_) => const LegalNoticesPage()));
   }
 
+  void openProjectStory(BuildContext context) {
+    Navigator.of(
+      context,
+    ).push<void>(MaterialPageRoute(builder: (_) => const ProjectStoryPage()));
+  }
+
   @override
   Widget build(BuildContext context) => PageWidth(
     child: Padding(
-      padding: const EdgeInsets.symmetric(vertical: 42),
-      child: Column(
+      padding: const EdgeInsets.symmetric(vertical: 28),
+      child: Align(
+        alignment: Alignment.centerRight,
+        child: Wrap(
+          alignment: WrapAlignment.end,
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            TextButton.icon(
+              onPressed: () => openProjectStory(context),
+              icon: const Icon(Icons.auto_stories_outlined),
+              label: const Text('Origine du projet'),
+            ),
+            TextButton.icon(
+              onPressed: () => openLegalNotices(context),
+              icon: const Icon(Icons.gavel_outlined),
+              label: const Text('Mentions légales et API'),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+class ProjectStoryPage extends StatelessWidget {
+  const ProjectStoryPage({super.key});
+
+  Future<void> _openRepository(BuildContext context) async {
+    final opened = await launchUrl(
+      Uri.parse('https://github.com/gatounet/FamilyFlix'),
+      mode: LaunchMode.externalApplication,
+    );
+    if (!opened && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Impossible d’ouvrir GitHub.')),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('Origine du projet')),
+    body: PageWidth(
+      child: ListView(
+        padding: const EdgeInsets.symmetric(vertical: 30),
         children: [
-          Wrap(
-            alignment: WrapAlignment.spaceBetween,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            spacing: 40,
-            runSpacing: 24,
+          const Kicker('UNE IDÉE FAMILIALE', withLine: true),
+          const SizedBox(height: 18),
+          const Text(
+            'Savoir ce que l’on possède.\nChoisir quoi regarder.\nLe faire ensemble.',
+            style: TextStyle(
+              fontFamily: 'Georgia',
+              fontSize: 38,
+              height: 1.08,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 20),
+          const Text(
+            'FamilyFlix est né pour répondre à une question toute simple dans une famille : « Qui possède ce film, où se trouve-t-il, et qu’est-ce qu’on regarde ce soir ? »',
+            style: TextStyle(fontSize: 18, height: 1.6),
+          ),
+          const SizedBox(height: 34),
+          const Wrap(
+            spacing: 16,
+            runSpacing: 16,
             children: [
-              const Text(
-                'CONÇU POUR RESTER GRATUIT',
-                style: TextStyle(
-                  fontSize: 13,
-                  letterSpacing: 2,
-                  fontWeight: FontWeight.w900,
-                ),
+              _StoryCard(
+                icon: Icons.video_library_outlined,
+                number: '01',
+                title: 'Rassembler',
+                text:
+                    'Une collection commune pour les films et séries stockés sur DVD, Blu-ray, NAS, box ou tout autre support.',
               ),
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text(
-                    '0 €',
-                    style: TextStyle(
-                      fontFamily: 'Georgia',
-                      color: accent,
-                      fontSize: 58,
-                    ),
-                  ),
-                  const SizedBox(width: 18),
-                  Text(
-                    'Pas d’abonnement.\nPas de publicité.\nVos données restent à vous.',
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                ],
+              _StoryCard(
+                icon: Icons.groups_outlined,
+                number: '02',
+                title: 'Partager',
+                text:
+                    'Chaque membre garde ses exemplaires tout en participant aux souhaits, avis et recommandations de la famille.',
+              ),
+              _StoryCard(
+                icon: Icons.weekend_outlined,
+                number: '03',
+                title: 'Choisir',
+                text:
+                    'Des informations TMDB et des filtres simples pour trouver rapidement le bon programme pour tout le monde.',
               ),
             ],
           ),
-          const SizedBox(height: 20),
-          const Divider(),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: TextButton.icon(
-              onPressed: () => openLegalNotices(context),
-              icon: const Icon(Icons.gavel_outlined),
-              label: const Text('Mentions légales, données et API utilisées'),
+          const SizedBox(height: 34),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(Icons.favorite_outline, color: accent, size: 34),
+                  const SizedBox(width: 18),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Une contrainte fondatrice : 0 €',
+                          style: TextStyle(
+                            fontFamily: 'Georgia',
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Le projet privilégie les solutions gratuites et ouvertes afin de rester accessible à une famille, sans abonnement ni publicité.',
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
+          const SizedBox(height: 24),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: FilledButton.icon(
+              onPressed: () => _openRepository(context),
+              icon: const Icon(Icons.code),
+              label: const Text('Découvrir le projet sur GitHub'),
+            ),
+          ),
+          const SizedBox(height: 34),
         ],
+      ),
+    ),
+  );
+}
+
+class _StoryCard extends StatelessWidget {
+  const _StoryCard({
+    required this.icon,
+    required this.number,
+    required this.title,
+    required this.text,
+  });
+
+  final IconData icon;
+  final String number;
+  final String title;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    width: 340,
+    child: Card(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Icon(icon, color: accent, size: 34),
+                Text(
+                  number,
+                  style: const TextStyle(
+                    color: accent,
+                    fontFamily: 'Georgia',
+                    fontSize: 28,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 22),
+            Text(
+              title,
+              style: const TextStyle(
+                fontFamily: 'Georgia',
+                fontSize: 25,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(text),
+          ],
+        ),
       ),
     ),
   );

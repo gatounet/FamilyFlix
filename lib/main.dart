@@ -2583,6 +2583,7 @@ class _FamilyLibraryState extends State<FamilyLibrary> {
   String? error;
   List<LibraryMovie> copies = const [];
   List<LibraryMovie> wishes = const [];
+  String mediaTypeFilter = 'all';
   String formatFilter = 'all';
   String genreFilter = 'all';
   String ageFilter = 'all';
@@ -2695,13 +2696,19 @@ class _FamilyLibraryState extends State<FamilyLibrary> {
 
   List<LibraryMovie> get filteredCopies {
     final result = copies.where((movie) {
+      final mediaTypeMatches =
+          mediaTypeFilter == 'all' || movie.mediaType == mediaTypeFilter;
       final formatMatches =
           formatFilter == 'all' || movie.format == formatFilter;
       final genreMatches =
           genreFilter == 'all' || movie.genres.contains(genreFilter);
       final ageMatches = ageFilter == 'all' || movie.ageCategory == ageFilter;
       final yearMatches = yearFilter == 'all' || movie.year == yearFilter;
-      return formatMatches && genreMatches && ageMatches && yearMatches;
+      return mediaTypeMatches &&
+          formatMatches &&
+          genreMatches &&
+          ageMatches &&
+          yearMatches;
     }).toList();
     if (sortOrder == 'title') {
       result.sort(
@@ -2834,6 +2841,7 @@ class _FamilyLibraryState extends State<FamilyLibrary> {
                     EmptyLibraryMessage(onAdd: widget.onAdd)
                   else ...[
                     LibraryFilters(
+                      mediaType: mediaTypeFilter,
                       format: formatFilter,
                       genre: genreFilter,
                       age: ageFilter,
@@ -2842,6 +2850,8 @@ class _FamilyLibraryState extends State<FamilyLibrary> {
                       genres: availableGenres,
                       ages: availableAges,
                       years: availableYears,
+                      onMediaTypeChanged: (value) =>
+                          setState(() => mediaTypeFilter = value),
                       onFormatChanged: (value) =>
                           setState(() => formatFilter = value),
                       onGenreChanged: (value) =>
@@ -2869,6 +2879,9 @@ class _FamilyLibraryState extends State<FamilyLibrary> {
                     else
                       MovieStrip(
                         movies: filteredCopies,
+                        canDeleteAny:
+                            widget.household.role == 'owner' ||
+                            widget.household.role == 'admin',
                         onDelete: deleteCopy,
                         onOpen: openMovie,
                       ),
@@ -2909,6 +2922,7 @@ class FamilyCatalogPage extends StatefulWidget {
 }
 
 class FamilyCatalogPageState extends State<FamilyCatalogPage> {
+  String mediaType = 'all';
   String format = 'all';
   String genre = 'all';
   String age = 'all';
@@ -2938,7 +2952,8 @@ class FamilyCatalogPageState extends State<FamilyCatalogPage> {
 
   List<LibraryMovie> get filteredMovies {
     final result = widget.movies.where((movie) {
-      return (format == 'all' || movie.format == format) &&
+      return (mediaType == 'all' || movie.mediaType == mediaType) &&
+          (format == 'all' || movie.format == format) &&
           (genre == 'all' || movie.genres.contains(genre)) &&
           (age == 'all' || movie.ageCategory == age) &&
           (year == 'all' || movie.year == year);
@@ -3113,6 +3128,7 @@ class FamilyCatalogPageState extends State<FamilyCatalogPage> {
           ),
           const SizedBox(height: 18),
           LibraryFilters(
+            mediaType: mediaType,
             format: format,
             genre: genre,
             age: age,
@@ -3121,6 +3137,7 @@ class FamilyCatalogPageState extends State<FamilyCatalogPage> {
             genres: genres,
             ages: ages,
             years: years,
+            onMediaTypeChanged: (value) => setState(() => mediaType = value),
             onFormatChanged: (value) => setState(() => format = value),
             onGenreChanged: (value) => setState(() => genre = value),
             onAgeChanged: (value) => setState(() => age = value),
@@ -3215,6 +3232,7 @@ class EmptyLibraryMessage extends StatelessWidget {
 class LibraryFilters extends StatelessWidget {
   const LibraryFilters({
     super.key,
+    required this.mediaType,
     required this.format,
     required this.genre,
     required this.age,
@@ -3223,6 +3241,7 @@ class LibraryFilters extends StatelessWidget {
     required this.genres,
     required this.ages,
     required this.years,
+    required this.onMediaTypeChanged,
     required this.onFormatChanged,
     required this.onGenreChanged,
     required this.onAgeChanged,
@@ -3230,6 +3249,7 @@ class LibraryFilters extends StatelessWidget {
     required this.onSortChanged,
   });
 
+  final String mediaType;
   final String format;
   final String genre;
   final String age;
@@ -3238,6 +3258,7 @@ class LibraryFilters extends StatelessWidget {
   final List<String> genres;
   final List<String> ages;
   final List<String> years;
+  final ValueChanged<String> onMediaTypeChanged;
   final ValueChanged<String> onFormatChanged;
   final ValueChanged<String> onGenreChanged;
   final ValueChanged<String> onAgeChanged;
@@ -3249,6 +3270,12 @@ class LibraryFilters extends StatelessWidget {
     spacing: 12,
     runSpacing: 12,
     children: [
+      _filter(
+        label: 'Type de contenu',
+        value: mediaType,
+        items: const {'all': 'Tous', 'movie': 'Films', 'tv': 'Séries'},
+        onChanged: onMediaTypeChanged,
+      ),
       _filter(
         label: 'Type de support',
         value: format,
@@ -3332,11 +3359,13 @@ class MovieStrip extends StatelessWidget {
   const MovieStrip({
     super.key,
     required this.movies,
+    this.canDeleteAny = false,
     this.wish = false,
     this.onDelete,
     this.onOpen,
   });
   final List<LibraryMovie> movies;
+  final bool canDeleteAny;
   final bool wish;
   final Future<void> Function(LibraryMovie movie)? onDelete;
   final Future<void> Function(LibraryMovie movie)? onOpen;
@@ -3352,6 +3381,7 @@ class MovieStrip extends StatelessWidget {
         width: 145,
         child: LibraryMovieCard(
           movie: movies[index],
+          canDeleteAny: canDeleteAny,
           wish: wish,
           onDelete: onDelete,
           onOpen: onOpen,
@@ -3366,12 +3396,14 @@ class LibraryMovieCard extends StatelessWidget {
     super.key,
     required this.movie,
     required this.wish,
+    this.canDeleteAny = false,
     this.onDelete,
     this.onOpen,
   });
 
   final LibraryMovie movie;
   final bool wish;
+  final bool canDeleteAny;
   final Future<void> Function(LibraryMovie movie)? onDelete;
   final Future<void> Function(LibraryMovie movie)? onOpen;
 
@@ -3408,7 +3440,9 @@ class LibraryMovieCard extends StatelessWidget {
               ),
             ),
             if (!wish &&
-                movie.ownerId == Supabase.instance.client.auth.currentUser?.id)
+                (canDeleteAny ||
+                    movie.ownerId ==
+                        Supabase.instance.client.auth.currentUser?.id))
               SizedBox(
                 width: 28,
                 height: 28,

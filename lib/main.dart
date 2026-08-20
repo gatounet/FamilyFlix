@@ -46,6 +46,66 @@ Future<void> main() async {
 class FamilyFlixApp extends StatelessWidget {
   const FamilyFlixApp({super.key});
 
+  ThemeData _theme({required Brightness brightness}) {
+    final dark = brightness == Brightness.dark;
+    final scheme = ColorScheme.fromSeed(
+      seedColor: accent,
+      brightness: brightness,
+      surface: dark ? const Color(0xFF1B1B18) : paper,
+    );
+    return ThemeData(
+      useMaterial3: true,
+      brightness: brightness,
+      scaffoldBackgroundColor: dark ? const Color(0xFF121210) : paper,
+      colorScheme: scheme,
+      cardColor: dark ? const Color(0xFF24241F) : null,
+      textTheme: TextTheme(
+        bodyLarge: TextStyle(
+          color: dark ? scheme.onSurface : ink,
+          fontSize: 17,
+          height: 1.55,
+        ),
+        bodyMedium: TextStyle(
+          color: dark ? scheme.onSurfaceVariant : const Color(0xFF5D5A53),
+          fontSize: 16,
+          height: 1.45,
+        ),
+        bodySmall: TextStyle(
+          color: dark ? scheme.onSurfaceVariant : const Color(0xFF68645D),
+          fontSize: 14,
+          height: 1.4,
+        ),
+      ),
+      inputDecorationTheme: const InputDecorationTheme(
+        border: OutlineInputBorder(),
+        contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 17),
+      ),
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          minimumSize: const Size(48, 52),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+          textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+        ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          minimumSize: const Size(48, 52),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
+          textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+        ),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          minimumSize: const Size(48, 48),
+          textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+        ),
+      ),
+      iconButtonTheme: const IconButtonThemeData(
+        style: ButtonStyle(minimumSize: WidgetStatePropertyAll(Size(48, 48))),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) => ValueListenableBuilder<ThemeMode>(
     valueListenable: themeMode,
@@ -53,26 +113,8 @@ class FamilyFlixApp extends StatelessWidget {
       title: 'FamilyFlix',
       debugShowCheckedModeBanner: false,
       themeMode: mode,
-      theme: ThemeData(
-        useMaterial3: true,
-        scaffoldBackgroundColor: paper,
-        colorScheme: ColorScheme.fromSeed(seedColor: accent, surface: paper),
-        textTheme: const TextTheme(
-          bodyLarge: TextStyle(color: ink, height: 1.55),
-          bodyMedium: TextStyle(color: Color(0xFF5D5A53)),
-        ),
-      ),
-      darkTheme: ThemeData(
-        useMaterial3: true,
-        brightness: Brightness.dark,
-        scaffoldBackgroundColor: const Color(0xFF121210),
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: accent,
-          brightness: Brightness.dark,
-          surface: const Color(0xFF1B1B18),
-        ),
-        cardColor: const Color(0xFF24241F),
-      ),
+      theme: _theme(brightness: Brightness.light),
+      darkTheme: _theme(brightness: Brightness.dark),
       home: const AuthGate(),
     ),
   );
@@ -997,46 +1039,66 @@ class _MovieSearchPageState extends State<MovieSearchPage> {
             },
           ),
           const SizedBox(height: 16),
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: TextField(
-                  controller: searchController,
-                  autofocus: true,
-                  textInputAction: TextInputAction.search,
-                  onSubmitted: (_) => search(),
-                  decoration: const InputDecoration(
-                    labelText: 'Titre du film ou de la série',
-                    hintText: 'Ex. Le Seigneur des anneaux',
-                    border: OutlineInputBorder(),
-                  ),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final mobile = constraints.maxWidth < 560;
+              final titleField = TextField(
+                controller: searchController,
+                autofocus: true,
+                textInputAction: TextInputAction.search,
+                onSubmitted: (_) => search(),
+                decoration: const InputDecoration(
+                  labelText: 'Titre du film ou de la série',
+                  hintText: 'Ex. Le Seigneur des anneaux',
+                  border: OutlineInputBorder(),
                 ),
-              ),
-              const SizedBox(width: 12),
-              SizedBox(
-                width: 118,
-                child: TextField(
-                  controller: yearController,
-                  keyboardType: TextInputType.number,
-                  maxLength: 4,
-                  textInputAction: TextInputAction.search,
-                  onSubmitted: (_) => search(),
-                  decoration: const InputDecoration(
-                    labelText: 'Année',
-                    hintText: '2024',
-                    counterText: '',
-                    border: OutlineInputBorder(),
-                  ),
+              );
+              final yearField = TextField(
+                controller: yearController,
+                keyboardType: TextInputType.number,
+                maxLength: 4,
+                textInputAction: TextInputAction.search,
+                onSubmitted: (_) => search(),
+                decoration: const InputDecoration(
+                  labelText: 'Année',
+                  hintText: '2024',
+                  counterText: '',
+                  border: OutlineInputBorder(),
                 ),
-              ),
-              const SizedBox(width: 8),
-              IconButton.filled(
+              );
+              final searchButton = IconButton.filled(
                 tooltip: 'Rechercher',
                 onPressed: loading ? null : search,
                 icon: const Icon(Icons.search),
-              ),
-            ],
+              );
+              if (mobile) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    titleField,
+                    const SizedBox(height: 12),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(child: yearField),
+                        const SizedBox(width: 10),
+                        SizedBox(width: 56, height: 56, child: searchButton),
+                      ],
+                    ),
+                  ],
+                );
+              }
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(child: titleField),
+                  const SizedBox(width: 12),
+                  SizedBox(width: 118, child: yearField),
+                  const SizedBox(width: 8),
+                  searchButton,
+                ],
+              );
+            },
           ),
           if (error != null) ...[
             const SizedBox(height: 14),
@@ -2174,15 +2236,18 @@ class PageWidth extends StatelessWidget {
   final Widget child;
 
   @override
-  Widget build(BuildContext context) => Center(
-    child: ConstrainedBox(
-      constraints: const BoxConstraints(maxWidth: 1180),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 22),
-        child: child,
+  Widget build(BuildContext context) {
+    final mobile = MediaQuery.sizeOf(context).width < 600;
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 1180),
+        child: Padding(
+          padding: EdgeInsets.symmetric(horizontal: mobile ? 16 : 22),
+          child: child,
+        ),
       ),
-    ),
-  );
+    );
+  }
 }
 
 class Header extends StatelessWidget {
@@ -2437,9 +2502,9 @@ class HeroSection extends StatelessWidget {
               ),
               style: TextStyle(
                 fontFamily: 'Georgia',
-                fontSize: mobile ? 52 : 88,
+                fontSize: mobile ? 42 : 88,
                 height: .94,
-                letterSpacing: mobile ? -2 : -4,
+                letterSpacing: mobile ? -1.5 : -4,
               ),
             ),
             const SizedBox(height: 28),
@@ -3266,63 +3331,73 @@ class LibraryFilters extends StatelessWidget {
   final ValueChanged<String> onSortChanged;
 
   @override
-  Widget build(BuildContext context) => Wrap(
-    spacing: 12,
-    runSpacing: 12,
-    children: [
-      _filter(
-        label: 'Type de contenu',
-        value: mediaType,
-        items: const {'all': 'Tous', 'movie': 'Films', 'tv': 'Séries'},
-        onChanged: onMediaTypeChanged,
-      ),
-      _filter(
-        label: 'Type de support',
-        value: format,
-        items: const {
-          'all': 'Tous',
-          'dvd': 'DVD',
-          'bluray': 'Blu-ray',
-          'bluray_4k': 'Blu-ray 4K',
-          'digital': 'Numérique',
-          'vhs': 'VHS',
-          'other': 'Autre',
-        },
-        onChanged: onFormatChanged,
-      ),
-      _filter(
-        label: 'Genre',
-        value: genre,
-        items: {'all': 'Tous', for (final item in genres) item: item},
-        onChanged: onGenreChanged,
-      ),
-      _filter(
-        label: 'Âge conseillé',
-        value: age,
-        items: {
-          'all': 'Tous',
-          for (final item in ages) item: LibraryMovie.ageLabel(item),
-        },
-        onChanged: onAgeChanged,
-      ),
-      _filter(
-        label: 'Année',
-        value: year,
-        items: {'all': 'Toutes', for (final item in years) item: item},
-        onChanged: onYearChanged,
-      ),
-      _filter(
-        label: 'Classer par',
-        value: sort,
-        items: const {
-          'recent': 'Ajout récent',
-          'title': 'Titre',
-          'year': 'Année',
-          'age': 'Âge conseillé',
-        },
-        onChanged: onSortChanged,
-      ),
-    ],
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final filterWidth = constraints.maxWidth < 520
+          ? constraints.maxWidth
+          : 190.0;
+      final filters = [
+        _filter(
+          label: 'Type de contenu',
+          value: mediaType,
+          items: const {'all': 'Tous', 'movie': 'Films', 'tv': 'Séries'},
+          onChanged: onMediaTypeChanged,
+        ),
+        _filter(
+          label: 'Type de support',
+          value: format,
+          items: const {
+            'all': 'Tous',
+            'dvd': 'DVD',
+            'bluray': 'Blu-ray',
+            'bluray_4k': 'Blu-ray 4K',
+            'digital': 'Numérique',
+            'vhs': 'VHS',
+            'other': 'Autre',
+          },
+          onChanged: onFormatChanged,
+        ),
+        _filter(
+          label: 'Genre',
+          value: genre,
+          items: {'all': 'Tous', for (final item in genres) item: item},
+          onChanged: onGenreChanged,
+        ),
+        _filter(
+          label: 'Âge conseillé',
+          value: age,
+          items: {
+            'all': 'Tous',
+            for (final item in ages) item: LibraryMovie.ageLabel(item),
+          },
+          onChanged: onAgeChanged,
+        ),
+        _filter(
+          label: 'Année',
+          value: year,
+          items: {'all': 'Toutes', for (final item in years) item: item},
+          onChanged: onYearChanged,
+        ),
+        _filter(
+          label: 'Classer par',
+          value: sort,
+          items: const {
+            'recent': 'Ajout récent',
+            'title': 'Titre',
+            'year': 'Année',
+            'age': 'Âge conseillé',
+          },
+          onChanged: onSortChanged,
+        ),
+      ];
+      return Wrap(
+        spacing: 12,
+        runSpacing: 12,
+        children: filters
+            .map((filter) => SizedBox(width: filterWidth, child: filter))
+            .toList(),
+      );
+    },
   );
 
   Widget _filter({
@@ -3330,28 +3405,21 @@ class LibraryFilters extends StatelessWidget {
     required String value,
     required Map<String, String> items,
     required ValueChanged<String> onChanged,
-  }) => SizedBox(
-    width: 190,
-    child: DropdownButtonFormField<String>(
-      initialValue: value,
-      isExpanded: true,
-      decoration: InputDecoration(
-        labelText: label,
-        border: const OutlineInputBorder(),
-        isDense: true,
-      ),
-      items: items.entries
-          .map(
-            (item) => DropdownMenuItem(
-              value: item.key,
-              child: Text(item.value, overflow: TextOverflow.ellipsis),
-            ),
-          )
-          .toList(),
-      onChanged: (newValue) {
-        if (newValue != null) onChanged(newValue);
-      },
-    ),
+  }) => DropdownButtonFormField<String>(
+    initialValue: value,
+    isExpanded: true,
+    decoration: InputDecoration(labelText: label),
+    items: items.entries
+        .map(
+          (item) => DropdownMenuItem(
+            value: item.key,
+            child: Text(item.value, overflow: TextOverflow.ellipsis),
+          ),
+        )
+        .toList(),
+    onChanged: (newValue) {
+      if (newValue != null) onChanged(newValue);
+    },
   );
 }
 
@@ -3371,24 +3439,27 @@ class MovieStrip extends StatelessWidget {
   final Future<void> Function(LibraryMovie movie)? onOpen;
 
   @override
-  Widget build(BuildContext context) => SizedBox(
-    height: 300,
-    child: ListView.separated(
-      scrollDirection: Axis.horizontal,
-      itemCount: movies.length,
-      separatorBuilder: (_, _) => const SizedBox(width: 16),
-      itemBuilder: (context, index) => SizedBox(
-        width: 145,
-        child: LibraryMovieCard(
-          movie: movies[index],
-          canDeleteAny: canDeleteAny,
-          wish: wish,
-          onDelete: onDelete,
-          onOpen: onOpen,
+  Widget build(BuildContext context) {
+    final mobile = MediaQuery.sizeOf(context).width < 600;
+    return SizedBox(
+      height: mobile ? 342 : 300,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: movies.length,
+        separatorBuilder: (_, _) => const SizedBox(width: 16),
+        itemBuilder: (context, index) => SizedBox(
+          width: mobile ? 172 : 145,
+          child: LibraryMovieCard(
+            movie: movies[index],
+            canDeleteAny: canDeleteAny,
+            wish: wish,
+            onDelete: onDelete,
+            onOpen: onOpen,
+          ),
         ),
       ),
-    ),
-  );
+    );
+  }
 }
 
 class LibraryMovieCard extends StatelessWidget {
@@ -3444,13 +3515,13 @@ class LibraryMovieCard extends StatelessWidget {
                     movie.ownerId ==
                         Supabase.instance.client.auth.currentUser?.id))
               SizedBox(
-                width: 28,
-                height: 28,
+                width: 48,
+                height: 48,
                 child: IconButton(
                   padding: EdgeInsets.zero,
                   tooltip: 'Retirer de la vidéothèque',
                   onPressed: onDelete == null ? null : () => onDelete!(movie),
-                  icon: const Icon(Icons.delete_outline, size: 18),
+                  icon: const Icon(Icons.delete_outline, size: 22),
                 ),
               ),
           ],
@@ -3460,7 +3531,7 @@ class LibraryMovieCard extends StatelessWidget {
           '${movie.year}${movie.member.isEmpty ? '' : ' · ${movie.member}'}',
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: const TextStyle(fontSize: 11, color: Color(0xFF77736B)),
+          style: const TextStyle(fontSize: 13, color: Color(0xFF77736B)),
         ),
         if (!wish && movie.format.isNotEmpty)
           Text(
@@ -3469,14 +3540,14 @@ class LibraryMovieCard extends StatelessWidget {
                 : '${movie.formatLabel} · ${movie.sourceName}',
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontSize: 10, color: accent),
+            style: const TextStyle(fontSize: 13, color: accent),
           ),
         if (!wish && movie.isSeries)
           Text(
             movie.ownershipLabel,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontSize: 10, color: Color(0xFF55514A)),
+            style: const TextStyle(fontSize: 13, color: Color(0xFF55514A)),
           ),
       ],
     ),
@@ -4583,44 +4654,177 @@ class Kicker extends StatelessWidget {
 class FreePromise extends StatelessWidget {
   const FreePromise({super.key});
 
+  void openLegalNotices(BuildContext context) {
+    Navigator.of(
+      context,
+    ).push<void>(MaterialPageRoute(builder: (_) => const LegalNoticesPage()));
+  }
+
   @override
   Widget build(BuildContext context) => PageWidth(
     child: Padding(
       padding: const EdgeInsets.symmetric(vertical: 42),
-      child: Wrap(
-        alignment: WrapAlignment.spaceBetween,
-        crossAxisAlignment: WrapCrossAlignment.center,
-        spacing: 40,
-        runSpacing: 24,
+      child: Column(
         children: [
-          const Text(
-            'CONÇU POUR RESTER GRATUIT',
-            style: TextStyle(
-              fontSize: 10,
-              letterSpacing: 2,
-              fontWeight: FontWeight.w900,
-            ),
-          ),
-          Row(
-            mainAxisSize: MainAxisSize.min,
+          Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 40,
+            runSpacing: 24,
             children: [
               const Text(
-                '0 €',
+                'CONÇU POUR RESTER GRATUIT',
                 style: TextStyle(
-                  fontFamily: 'Georgia',
-                  color: accent,
-                  fontSize: 58,
+                  fontSize: 13,
+                  letterSpacing: 2,
+                  fontWeight: FontWeight.w900,
                 ),
               ),
-              const SizedBox(width: 18),
-              Text(
-                'Pas d’abonnement.\nPas de publicité.\nVos données restent à vous.',
-                style: Theme.of(context).textTheme.bodySmall,
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    '0 €',
+                    style: TextStyle(
+                      fontFamily: 'Georgia',
+                      color: accent,
+                      fontSize: 58,
+                    ),
+                  ),
+                  const SizedBox(width: 18),
+                  Text(
+                    'Pas d’abonnement.\nPas de publicité.\nVos données restent à vous.',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ],
               ),
             ],
           ),
+          const SizedBox(height: 20),
+          const Divider(),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton.icon(
+              onPressed: () => openLegalNotices(context),
+              icon: const Icon(Icons.gavel_outlined),
+              label: const Text('Mentions légales, données et API utilisées'),
+            ),
+          ),
         ],
       ),
+    ),
+  );
+}
+
+class LegalNoticesPage extends StatelessWidget {
+  const LegalNoticesPage({super.key});
+
+  Future<void> _open(BuildContext context, String url) async {
+    final opened = await launchUrl(
+      Uri.parse(url),
+      mode: LaunchMode.externalApplication,
+    );
+    if (!opened && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Impossible d’ouvrir ce lien.')),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('Mentions légales et services utilisés')),
+    body: PageWidth(
+      child: ListView(
+        padding: const EdgeInsets.symmetric(vertical: 24),
+        children: [
+          const _LegalSection(
+            title: 'À propos de FamilyFlix',
+            text:
+                'FamilyFlix est une application familiale, gratuite et sans publicité permettant de gérer une collection privée de films et de séries. Elle ne fournit, ne diffuse et n’héberge aucun film, épisode ou bande-annonce.',
+          ),
+          const _LegalSection(
+            title: 'Données personnelles',
+            text:
+                'Les informations de compte, familles, collections, souhaits et avis sont enregistrées dans Supabase. Elles servent uniquement au fonctionnement de la vidéothèque familiale. Les règles d’accès de la base limitent leur consultation aux membres autorisés de la famille. Ne renseignez pas d’informations sensibles dans les avis ou les notes.',
+          ),
+          const _LegalSection(
+            title: 'TMDB — métadonnées cinéma et télévision',
+            text:
+                'Les titres, affiches, synopsis, distributions, classifications, notes et informations associées proviennent de The Movie Database (TMDB). FamilyFlix utilise ces données uniquement pour identifier et présenter les œuvres dans la collection familiale. Les informations peuvent être incomplètes ou comporter des erreurs.\n\nThis product uses the TMDB API but is not endorsed or certified by TMDB.',
+          ),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              OutlinedButton.icon(
+                onPressed: () => _open(context, 'https://www.themoviedb.org/'),
+                icon: const Icon(Icons.open_in_new),
+                label: const Text('Site de TMDB'),
+              ),
+              OutlinedButton.icon(
+                onPressed: () =>
+                    _open(context, 'https://www.themoviedb.org/terms-of-use'),
+                icon: const Icon(Icons.description_outlined),
+                label: const Text('Conditions de TMDB'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 28),
+          const _LegalSection(
+            title: 'Autres services et API',
+            text:
+                'Supabase fournit l’authentification, la base de données et les fonctions techniques qui interrogent TMDB. GitHub Pages héberge l’application web. Les liens vers les bandes-annonces peuvent ouvrir YouTube ou Vimeo dans une application ou un site externe, soumis à leurs propres conditions et politiques de confidentialité.',
+          ),
+          const _LegalSection(
+            title: 'Responsabilité et usage',
+            text:
+                'FamilyFlix est destiné à un usage privé et familial. Chaque utilisateur reste responsable des informations qu’il ajoute et du respect des droits applicables aux supports qu’il possède. Les données affichées depuis des services tiers restent la propriété de leurs titulaires respectifs.',
+          ),
+          const _LegalSection(
+            title: 'Projet et hébergement',
+            text:
+                'Le code source de FamilyFlix est publié sur GitHub. L’application est proposée sans garantie de disponibilité permanente. Ces mentions pourront évoluer si de nouveaux services sont ajoutés.',
+          ),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: FilledButton.icon(
+              onPressed: () =>
+                  _open(context, 'https://github.com/gatounet/FamilyFlix'),
+              icon: const Icon(Icons.code),
+              label: const Text('Voir le projet sur GitHub'),
+            ),
+          ),
+          const SizedBox(height: 32),
+        ],
+      ),
+    ),
+  );
+}
+
+class _LegalSection extends StatelessWidget {
+  const _LegalSection({required this.title, required this.text});
+
+  final String title;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(bottom: 28),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: const TextStyle(
+            fontFamily: 'Georgia',
+            fontSize: 25,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 10),
+        Text(text, style: const TextStyle(fontSize: 16, height: 1.55)),
+      ],
     ),
   );
 }

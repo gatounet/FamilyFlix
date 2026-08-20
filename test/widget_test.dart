@@ -16,6 +16,35 @@ void main() {
     expect(find.text('Ajouter un film ou une série'), findsOneWidget);
   });
 
+  testWidgets('reste lisible sur un écran de smartphone', (tester) async {
+    tester.view.physicalSize = const Size(390, 844);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await tester.pumpWidget(const FamilyFlixApp());
+    await tester.pump();
+
+    expect(tester.takeException(), isNull);
+    expect(find.text('Ajouter un film ou une série'), findsOneWidget);
+  });
+
+  testWidgets('présente les API dans les mentions légales', (tester) async {
+    await tester.pumpWidget(const MaterialApp(home: LegalNoticesPage()));
+
+    expect(
+      find.text('TMDB — métadonnées cinéma et télévision'),
+      findsOneWidget,
+    );
+    await tester.scrollUntilVisible(
+      find.text('Autres services et API'),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+    expect(find.text('Autres services et API'), findsOneWidget);
+    expect(find.textContaining('Supabase fournit'), findsOneWidget);
+  });
+
   test('l’avatar familial évolue avec la collection', () {
     expect(const FamilyAvatar(filmCount: 0).stage.label, 'L’aventure commence');
     expect(const FamilyAvatar(filmCount: 10).stage.label, 'Soirée popcorn');

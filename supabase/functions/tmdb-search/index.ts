@@ -29,11 +29,24 @@ Deno.serve(async (request) => {
       );
     }
 
-    const url = new URL("https://api.themoviedb.org/3/search/movie");
+    const requestedType = ["movie", "tv", "all"].includes(body?.media_type)
+      ? body.media_type
+      : "all";
+    const year = typeof body?.year === "string" && /^\d{4}$/.test(body.year)
+      ? body.year
+      : "";
+    const endpoint = requestedType === "all" ? "multi" : requestedType;
+    const url = new URL(`https://api.themoviedb.org/3/search/${endpoint}`);
     url.searchParams.set("query", query);
     url.searchParams.set("language", "fr-FR");
     url.searchParams.set("include_adult", "false");
     url.searchParams.set("page", "1");
+    if (year !== "" && requestedType !== "all") {
+      url.searchParams.set(
+        requestedType === "tv" ? "year" : "primary_release_year",
+        year,
+      );
+    }
 
     const tmdbResponse = await fetch(url, {
       headers: {
@@ -51,14 +64,32 @@ Deno.serve(async (request) => {
 
     const payload = await tmdbResponse.json();
     const results = Array.isArray(payload.results)
-      ? payload.results.slice(0, 20).map((movie: Record<string, unknown>) => ({
-          tmdb_id: movie.id,
-          title: movie.title,
-          original_title: movie.original_title,
-          overview: movie.overview,
-          release_date: movie.release_date || null,
-          poster_path: movie.poster_path || null,
-        }))
+      ? payload.results
+        .filter((item: Record<string, unknown>) =>
+          requestedType !== "all" || ["movie", "tv"].includes(String(item.media_type))
+        )
+        .map((item: Record<string, unknown>) => {
+          const mediaType = requestedType === "all"
+            ? String(item.media_type)
+            : requestedType;
+          return {
+            tmdb_id: item.id,
+            media_type: mediaType,
+            title: mediaType === "tv" ? item.name : item.title,
+            original_title: mediaType === "tv"
+              ? item.original_name
+              : item.original_title,
+            overview: item.overview,
+            release_date: mediaType === "tv"
+              ? item.first_air_date || null
+              : item.release_date || null,
+            poster_path: item.poster_path || null,
+          };
+        })
+        .filter((item: Record<string, unknown>) =>
+          year === "" || String(item.release_date).startsWith(year)
+        )
+        .slice(0, 20)
       : [];
 
     return Response.json({ results }, { headers: corsHeaders });

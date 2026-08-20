@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="FamilyFlix">
+  <rect width="128" height="128" rx="26" fill="#171715"/>
+  <path d="M24 28h80a8 8 0 0 1 8 8v12H16V36a8 8 0 0 1 8-8Z" fill="#e84e2c"/>
+  <path d="m25 28 15 20m15-20 15 20m15-20 15 20" stroke="#f3f0e8" stroke-width="8"/>
+  <rect x="16" y="48" width="96" height="64" rx="8" fill="#f3f0e8"/>
+  <path d="M45 65h42v12H59v8h24v11H59v16H45Z" fill="#171715"/>
+</svg>

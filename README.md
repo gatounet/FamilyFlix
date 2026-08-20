@@ -1,6 +1,6 @@
 # FamilyFlix
 
-FamilyFlix est une application de vidéothèque privée pensée pour une famille. Elle permet de savoir quels films sont disponibles à la maison, sur quel support ils se trouvent et à qui ils appartiennent, tout en donnant aux membres un espace commun pour proposer et noter des films.
+FamilyFlix est une application de vidéothèque privée pensée pour une famille. Elle permet de savoir quels films et séries sont disponibles à la maison, sur quel support ils se trouvent et à qui ils appartiennent, tout en donnant aux membres un espace commun pour proposer et noter des contenus.
 
 Le projet poursuit une contrainte simple : rester utilisable sans abonnement ni infrastructure payante obligatoire.
 
@@ -24,13 +24,17 @@ Les informations cinématographiques sont récupérées depuis TMDB. Les informa
 
 ### Vidéothèque
 
-- recherche de films sur TMDB ;
+- recherche combinée de films et de séries sur TMDB ;
 - ajout d’un exemplaire physique ou numérique ;
+- possession d’une série complète, d’une saison particulière ou d’une sélection de saisons ;
 - gestion des supports communs : DVD, Blu-ray, Blu-ray 4K, NAS, box, disque dur, étagère, etc. ;
 - indication du propriétaire et de l’emplacement ;
 - suppression d’un exemplaire sans supprimer les autres données du film ;
 - filtres par support, genre et âge conseillé ;
-- classement par ajout récent, titre, année ou classification d’âge.
+- filtre par année dans la recherche TMDB et la collection ;
+- classement par ajout récent, titre, année ou classification d’âge ;
+- catalogue complet sous forme de tableau avec export CSV et PDF imprimable ;
+- thème clair, sombre ou synchronisé avec le système de l’utilisateur.
 
 ### Découverte et participation
 
@@ -39,28 +43,6 @@ Les informations cinématographiques sont récupérées depuis TMDB. Les informa
 - fiche détaillée avec synopsis, affiche, durée, genres et classification ;
 - distribution et fiches des acteurs ;
 - bandes-annonces, teasers et vidéos disponibles sur YouTube ou Vimeo.
-
-## Architecture
-
-| Élément | Technologie | Rôle |
-|---|---|---|
-| Application | Flutter / Dart | Interface Android et Web |
-| Authentification | Supabase Auth | Comptes et sessions |
-| Base de données | Supabase Postgres | Familles, films, supports, souhaits et avis |
-| Sécurité | Row Level Security | Isolation des données entre les familles |
-| Métadonnées | TMDB API | Films, casting, classifications et vidéos |
-| Accès à TMDB | Supabase Edge Functions | Protection du jeton TMDB |
-
-```text
-Application Flutter
-       │
-       ├── Supabase Auth ── comptes et sessions
-       ├── Postgres + RLS ── données privées de la famille
-       └── Edge Functions ── TMDB
-                                ├── recherche de films
-                                ├── détails et vidéos
-                                └── fiches des acteurs
-```
 
 ## Confidentialité et coût
 

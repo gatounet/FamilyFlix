@@ -62,7 +62,10 @@ FamilyFlix est né comme un projet familial sans budget. Il privilégie donc les
 
 - recherche combinée de films et de séries sur TMDB ;
 - ajout d’un exemplaire physique ou numérique ;
+- ajout successif de plusieurs contenus sans quitter la page de recherche ;
+- choix mémorisé d’un support proposé par défaut lors des nouveaux ajouts ;
 - possession d’une série complète, d’une saison particulière ou d’une sélection de saisons ;
+- regroupement des exemplaires d’une même œuvre sous une seule fiche, avec le détail des propriétaires et supports ;
 - gestion des supports communs : DVD, Blu-ray, Blu-ray 4K, NAS, box, disque dur, étagère, etc. ;
 - transfert groupé d’exemplaires d’un support vers un autre, sans duplication ;
 - indication du propriétaire et de l’emplacement ;

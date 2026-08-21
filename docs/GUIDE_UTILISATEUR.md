@@ -60,13 +60,32 @@ Touchez ou cliquez sur une affiche pour ouvrir sa fiche détaillée : synopsis, 
 6. Pour un contenu possédé, choisissez le propriétaire, le support et les informations utiles.
 7. Validez l’ajout.
 
+La page de recherche reste ouverte après la validation. Une notification en bas confirme le titre ajouté et vous pouvez immédiatement sélectionner un autre résultat sans revenir à la vidéothèque.
+
+### Choisir un support proposé par défaut
+
+Le champ **Support proposé pour les prochains ajouts**, placé sur la page de recherche, permet de choisir le support utilisé le plus souvent, par exemple un NAS ou une étagère DVD. FamilyFlix mémorise ce choix pour la famille et le présélectionne avec son type dans chaque nouvelle fiche. Vous pouvez toujours le modifier avant de valider un exemplaire ou choisir **Aucun support par défaut**.
+
 Pour une série, FamilyFlix permet d’indiquer que vous possédez :
 
 - la série complète ;
 - une saison particulière ;
 - plusieurs saisons sélectionnées.
 
-Une même fiche peut avoir plusieurs exemplaires si plusieurs personnes possèdent réellement le contenu. La suppression d’un exemplaire ne supprime pas ceux des autres membres.
+Une même fiche peut avoir plusieurs exemplaires si plusieurs personnes possèdent réellement le contenu. FamilyFlix les regroupe sous une seule affiche : la carte indique le nombre d’exemplaires et la fiche détaillée présente séparément chaque propriétaire, format et emplacement. La suppression d’un exemplaire ne supprime pas ceux des autres membres.
+
+### Consulter plusieurs exemplaires du même contenu
+
+Lorsqu’un film ou une série est présent plusieurs fois dans la famille :
+
+- une seule fiche apparaît dans la vidéothèque ;
+- le nombre total d’exemplaires est indiqué sur la carte ;
+- les propriétaires sont affichés ensemble ;
+- la fiche détaillée liste chaque exemplaire avec son support et son emplacement ;
+- les filtres trouvent la fiche dès qu’au moins un exemplaire correspond au support choisi ;
+- un propriétaire peut retirer son exemplaire et un administrateur peut retirer individuellement n’importe quel exemplaire autorisé.
+
+Le regroupement ne transforme pas les exemplaires en une donnée unique : chacun conserve son propriétaire, son support et son emplacement dans la collection familiale.
 
 ## 6. Gérer les supports et emplacements
 
@@ -110,7 +129,7 @@ Le catalogue peut être exporté :
 - en **PDF**, avec la date de génération, pour l’imprimer ou l’archiver ;
 - en **CSV**, pour le lire ou le traiter dans un tableur.
 
-Depuis la fiche détaillée d’un film, la jaquette peut également être imprimée au format d’une boîte DVD classique, avec l’affiche en façade et le résumé au dos.
+Depuis la fiche détaillée d’un film, la jaquette peut également être imprimée au format d’une boîte DVD classique, avec l’affiche en façade, le résumé au dos et une tranche portant le titre en majuscules ainsi que l’année. La taille du titre s’adapte automatiquement pour ne pas déborder.
 
 ## 9. Gérer les membres de la famille
 

@@ -2044,11 +2044,91 @@ class _MediaSourcesPageState extends State<MediaSourcesPage> {
     await load();
   }
 
+  Future<void> transferSources() async {
+    if (sources.length < 2) return;
+    final transfer = await showDialog<MediaTransferDraft>(
+      context: context,
+      builder: (_) => MediaTransferDialog(
+        sources: sources,
+        canTransferFamily:
+            widget.household.role == 'owner' ||
+            widget.household.role == 'admin',
+      ),
+    );
+    if (transfer == null) return;
+
+    final source = sources.firstWhere((item) => item.id == transfer.sourceId);
+    final destination = sources.firstWhere(
+      (item) => item.id == transfer.destinationId,
+    );
+    if (!mounted) return;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Confirmer le transfert'),
+        content: Text(
+          'Les contenus de “${source.name}” seront déplacés vers “${destination.name}”. '
+          '${transfer.forFamily ? 'Cela concerne toute la famille.' : 'Cela concerne uniquement vos exemplaires.'}\n\n'
+          'Les fiches existantes seront modifiées : aucun film ni aucune série ne sera dupliqué.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Annuler'),
+          ),
+          FilledButton.icon(
+            onPressed: () => Navigator.pop(context, true),
+            icon: const Icon(Icons.swap_horiz),
+            label: const Text('Transférer'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    try {
+      final result = await Supabase.instance.client.rpc(
+        'transfer_media_source',
+        params: {
+          'p_household_id': widget.household.id,
+          'p_source_id': transfer.sourceId,
+          'p_destination_id': transfer.destinationId,
+          'p_for_family': transfer.forFamily,
+          'p_update_format': transfer.updateFormat,
+        },
+      );
+      if (!mounted) return;
+      final count = result as int? ?? 0;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            count == 0
+                ? 'Aucun contenu à transférer depuis “${source.name}”.'
+                : '$count contenu${count > 1 ? 's ont' : ' a'} été transféré${count > 1 ? 's' : ''} vers “${destination.name}”, sans duplication.',
+          ),
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Le transfert n’a pas pu être effectué.')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
       title: const Text('Supports de la famille'),
       backgroundColor: Theme.of(context).colorScheme.surface,
+      actions: [
+        IconButton(
+          tooltip: 'Transférer plusieurs contenus',
+          onPressed: sources.length < 2 ? null : transferSources,
+          icon: const Icon(Icons.drive_file_move_outline),
+        ),
+        const SizedBox(width: 8),
+      ],
     ),
     floatingActionButton: widget.household.role == 'owner'
         ? FloatingActionButton.extended(
@@ -2100,6 +2180,140 @@ class _MediaSourcesPageState extends State<MediaSourcesPage> {
               },
             ),
     ),
+  );
+}
+
+class MediaTransferDialog extends StatefulWidget {
+  const MediaTransferDialog({
+    super.key,
+    required this.sources,
+    required this.canTransferFamily,
+  });
+
+  final List<MediaSource> sources;
+  final bool canTransferFamily;
+
+  @override
+  State<MediaTransferDialog> createState() => _MediaTransferDialogState();
+}
+
+class _MediaTransferDialogState extends State<MediaTransferDialog> {
+  late String sourceId;
+  late String destinationId;
+  bool forFamily = false;
+  bool updateFormat = true;
+
+  @override
+  void initState() {
+    super.initState();
+    sourceId = widget.sources.first.id;
+    destinationId = widget.sources[1].id;
+  }
+
+  MediaSource get destination =>
+      widget.sources.firstWhere((source) => source.id == destinationId);
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: const Text('Transférer plusieurs contenus'),
+    content: SizedBox(
+      width: 520,
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text(
+              'Déplacez rapidement tous les exemplaires concernés vers un autre support. Les fiches seront mises à jour sans être dupliquées.',
+            ),
+            const SizedBox(height: 22),
+            DropdownButtonFormField<String>(
+              initialValue: sourceId,
+              decoration: const InputDecoration(
+                labelText: 'Support de départ',
+                prefixIcon: Icon(Icons.logout),
+              ),
+              items: [
+                for (final source in widget.sources)
+                  DropdownMenuItem(value: source.id, child: Text(source.name)),
+              ],
+              onChanged: (value) {
+                if (value == null) return;
+                setState(() {
+                  sourceId = value;
+                  if (destinationId == sourceId) {
+                    destinationId = widget.sources
+                        .firstWhere((source) => source.id != sourceId)
+                        .id;
+                  }
+                });
+              },
+            ),
+            const SizedBox(height: 16),
+            DropdownButtonFormField<String>(
+              key: ValueKey('destination-$sourceId-$destinationId'),
+              initialValue: destinationId,
+              decoration: const InputDecoration(
+                labelText: 'Support de destination',
+                prefixIcon: Icon(Icons.login),
+              ),
+              items: [
+                for (final source in widget.sources)
+                  if (source.id != sourceId)
+                    DropdownMenuItem(
+                      value: source.id,
+                      child: Text(source.name),
+                    ),
+              ],
+              onChanged: (value) {
+                if (value != null) setState(() => destinationId = value);
+              },
+            ),
+            const SizedBox(height: 12),
+            SwitchListTile(
+              value: updateFormat,
+              contentPadding: EdgeInsets.zero,
+              title: const Text('Appliquer le type du support destination'),
+              subtitle: Text(
+                'Les contenus deviendront “${destination.formatLabel}”.',
+              ),
+              onChanged: (value) => setState(() => updateFormat = value),
+            ),
+            if (widget.canTransferFamily)
+              SwitchListTile(
+                value: forFamily,
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Transférer pour toute la famille'),
+                subtitle: const Text(
+                  'Inclut également les exemplaires des autres membres.',
+                ),
+                onChanged: (value) => setState(() => forFamily = value),
+              ),
+          ],
+        ),
+      ),
+    ),
+    actions: [
+      TextButton(
+        onPressed: () => Navigator.pop(context),
+        child: const Text('Annuler'),
+      ),
+      FilledButton.icon(
+        onPressed: sourceId == destinationId
+            ? null
+            : () => Navigator.pop(
+                context,
+                MediaTransferDraft(
+                  sourceId: sourceId,
+                  destinationId: destinationId,
+                  forFamily: forFamily,
+                  updateFormat: updateFormat,
+                ),
+              ),
+        icon: const Icon(Icons.arrow_forward),
+        label: const Text('Continuer'),
+      ),
+    ],
   );
 }
 
@@ -2237,6 +2451,20 @@ class MediaSourceDraft {
   final String name;
   final String defaultFormat;
   final String details;
+}
+
+class MediaTransferDraft {
+  const MediaTransferDraft({
+    required this.sourceId,
+    required this.destinationId,
+    required this.forFamily,
+    required this.updateFormat,
+  });
+
+  final String sourceId;
+  final String destinationId;
+  final bool forFamily;
+  final bool updateFormat;
 }
 
 class TmdbMovie {

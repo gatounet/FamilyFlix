@@ -63,43 +63,100 @@ class FamilyFlixApp extends StatelessWidget {
       textTheme: TextTheme(
         bodyLarge: TextStyle(
           color: dark ? scheme.onSurface : ink,
-          fontSize: 17,
+          fontSize: 19,
           height: 1.55,
         ),
         bodyMedium: TextStyle(
           color: dark ? scheme.onSurfaceVariant : const Color(0xFF5D5A53),
-          fontSize: 16,
+          fontSize: 18,
           height: 1.45,
         ),
         bodySmall: TextStyle(
           color: dark ? scheme.onSurfaceVariant : const Color(0xFF68645D),
-          fontSize: 14,
+          fontSize: 16,
           height: 1.4,
         ),
+        labelLarge: TextStyle(
+          color: dark ? scheme.onSurface : ink,
+          fontSize: 18,
+          fontWeight: FontWeight.w700,
+        ),
+        labelMedium: TextStyle(
+          color: dark ? scheme.onSurfaceVariant : const Color(0xFF5D5A53),
+          fontSize: 17,
+          fontWeight: FontWeight.w600,
+        ),
+        labelSmall: TextStyle(
+          color: dark ? scheme.onSurfaceVariant : const Color(0xFF68645D),
+          fontSize: 15,
+          fontWeight: FontWeight.w600,
+        ),
       ),
-      inputDecorationTheme: const InputDecorationTheme(
-        border: OutlineInputBorder(),
-        contentPadding: EdgeInsets.symmetric(horizontal: 16, vertical: 17),
+      inputDecorationTheme: InputDecorationTheme(
+        border: const OutlineInputBorder(),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 18,
+          vertical: 19,
+        ),
+        labelStyle: const TextStyle(fontSize: 17),
+        floatingLabelStyle: TextStyle(
+          color: scheme.primary,
+          fontSize: 17,
+          fontWeight: FontWeight.w600,
+        ),
+        hintStyle: TextStyle(color: scheme.onSurfaceVariant, fontSize: 17),
+        helperStyle: const TextStyle(fontSize: 15),
+        errorStyle: TextStyle(color: scheme.error, fontSize: 15),
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
           minimumSize: const Size(48, 52),
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
-          textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+          textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
           minimumSize: const Size(48, 52),
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
-          textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+          textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
         ),
       ),
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
           minimumSize: const Size(48, 48),
-          textStyle: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
+          textStyle: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
         ),
+      ),
+      chipTheme: ChipThemeData(
+        labelStyle: TextStyle(
+          color: scheme.onSurfaceVariant,
+          fontSize: 17,
+          fontWeight: FontWeight.w600,
+        ),
+        secondaryLabelStyle: TextStyle(
+          color: scheme.onSecondaryContainer,
+          fontSize: 17,
+          fontWeight: FontWeight.w700,
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      ),
+      dropdownMenuTheme: const DropdownMenuThemeData(
+        textStyle: TextStyle(fontSize: 18),
+      ),
+      popupMenuTheme: const PopupMenuThemeData(
+        textStyle: TextStyle(fontSize: 17),
+      ),
+      listTileTheme: const ListTileThemeData(
+        titleTextStyle: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+        subtitleTextStyle: TextStyle(fontSize: 16, height: 1.35),
+        minVerticalPadding: 14,
+      ),
+      dataTableTheme: const DataTableThemeData(
+        dataTextStyle: TextStyle(fontSize: 17),
+        headingTextStyle: TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
+        dataRowMinHeight: 58,
+        headingRowHeight: 60,
       ),
       iconButtonTheme: const IconButtonThemeData(
         style: ButtonStyle(minimumSize: WidgetStatePropertyAll(Size(48, 48))),
@@ -900,12 +957,12 @@ class HomePage extends StatelessWidget {
       comingSoon(context, 'La recherche Internet');
       return;
     }
-    final saved = await Navigator.of(context).push<bool>(
+    await Navigator.of(context).push<void>(
       MaterialPageRoute(
-        builder: (_) => MovieSearchPage(household: currentHousehold),
+        builder: (_) =>
+            MovieSearchPage(household: currentHousehold, onSaved: onChanged),
       ),
     );
-    if (saved == true) await onChanged?.call();
   }
 
   Future<void> openMediaSources(BuildContext context) async {
@@ -955,12 +1012,7 @@ class HomePage extends StatelessWidget {
                   : null,
             ),
           ),
-          SliverToBoxAdapter(
-            child: HeroSection(
-              onAdd: () => openMovieSearch(context),
-              onManageSources: () => openMediaSources(context),
-            ),
-          ),
+          const SliverToBoxAdapter(child: HeroSection()),
           SliverToBoxAdapter(
             child: household == null
                 ? Collection(
@@ -970,6 +1022,7 @@ class HomePage extends StatelessWidget {
                 : FamilyLibrary(
                     household: household!,
                     onAdd: () => openMovieSearch(context),
+                    onManageSources: () => openMediaSources(context),
                     onChanged: onChanged,
                   ),
           ),
@@ -981,8 +1034,9 @@ class HomePage extends StatelessWidget {
 }
 
 class MovieSearchPage extends StatefulWidget {
-  const MovieSearchPage({super.key, required this.household});
+  const MovieSearchPage({super.key, required this.household, this.onSaved});
   final HouseholdSummary household;
+  final Future<void> Function()? onSaved;
 
   @override
   State<MovieSearchPage> createState() => _MovieSearchPageState();
@@ -992,9 +1046,21 @@ class _MovieSearchPageState extends State<MovieSearchPage> {
   final searchController = TextEditingController();
   final yearController = TextEditingController();
   List<TmdbMovie> results = const [];
+  List<MediaSource> mediaSources = const [];
+  String? defaultMediaSourceId;
   String mediaType = 'all';
   bool loading = false;
+  bool loadingSources = true;
   String? error;
+
+  String get defaultSourcePreferenceKey =>
+      'default_media_source_${widget.household.id}';
+
+  @override
+  void initState() {
+    super.initState();
+    loadMediaSources();
+  }
 
   @override
   void dispose() {
@@ -1053,14 +1119,67 @@ class _MovieSearchPageState extends State<MovieSearchPage> {
     }
   }
 
+  Future<void> loadMediaSources() async {
+    try {
+      final sourcesFuture = Supabase.instance.client
+          .from('media_sources')
+          .select('id, name, default_format, details')
+          .eq('household_id', widget.household.id)
+          .eq('is_active', true)
+          .order('name');
+      final preferenceFuture = SharedPreferencesAsync().getString(
+        defaultSourcePreferenceKey,
+      );
+      final rows = await sourcesFuture;
+      final savedSourceId = await preferenceFuture;
+      if (!mounted) return;
+      final sources = rows
+          .map(
+            (row) =>
+                MediaSource.fromJson(Map<String, dynamic>.from(row as Map)),
+          )
+          .toList();
+      setState(() {
+        mediaSources = sources;
+        defaultMediaSourceId = mediaSourceWithId(sources, savedSourceId)?.id;
+        loadingSources = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() => loadingSources = false);
+    }
+  }
+
+  Future<void> selectDefaultMediaSource(String? sourceId) async {
+    setState(() => defaultMediaSourceId = sourceId);
+    final preferences = SharedPreferencesAsync();
+    if (sourceId == null) {
+      await preferences.remove(defaultSourcePreferenceKey);
+    } else {
+      await preferences.setString(defaultSourcePreferenceKey, sourceId);
+    }
+  }
+
   Future<void> chooseMovie(TmdbMovie movie) async {
     final saved = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
-      builder: (_) => SaveMovieSheet(household: widget.household, movie: movie),
+      builder: (_) => SaveMovieSheet(
+        household: widget.household,
+        movie: movie,
+        defaultMediaSourceId: defaultMediaSourceId,
+      ),
     );
-    if (saved == true && mounted) Navigator.of(context).pop(true);
+    if (saved != true || !mounted) return;
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(
+        SnackBar(
+          behavior: SnackBarBehavior.floating,
+          content: Text(contentAddedMessage(movie.title)),
+        ),
+      );
+    await widget.onSaved?.call();
   }
 
   @override
@@ -1093,6 +1212,34 @@ class _MovieSearchPageState extends State<MovieSearchPage> {
               if (searchController.text.trim().length >= 2) search();
             },
           ),
+          const SizedBox(height: 14),
+          if (loadingSources)
+            const LinearProgressIndicator()
+          else if (mediaSources.isNotEmpty)
+            DropdownButtonFormField<String?>(
+              key: ValueKey(defaultMediaSourceId),
+              initialValue: defaultMediaSourceId,
+              isExpanded: true,
+              decoration: const InputDecoration(
+                labelText: 'Support proposé pour les prochains ajouts',
+                helperText:
+                    'Il sera présélectionné, mais restera modifiable avant validation.',
+                prefixIcon: Icon(Icons.storage_outlined),
+              ),
+              items: [
+                const DropdownMenuItem<String?>(
+                  value: null,
+                  child: Text('Aucun support par défaut'),
+                ),
+                ...mediaSources.map(
+                  (source) => DropdownMenuItem<String?>(
+                    value: source.id,
+                    child: Text('${source.name} · ${source.formatLabel}'),
+                  ),
+                ),
+              ],
+              onChanged: selectDefaultMediaSource,
+            ),
           const SizedBox(height: 16),
           LayoutBuilder(
             builder: (context, constraints) {
@@ -1101,10 +1248,23 @@ class _MovieSearchPageState extends State<MovieSearchPage> {
                 controller: searchController,
                 autofocus: true,
                 textInputAction: TextInputAction.search,
+                style: const TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w600,
+                ),
                 onSubmitted: (_) => search(),
                 decoration: const InputDecoration(
                   labelText: 'Titre du film ou de la série',
                   hintText: 'Ex. Le Seigneur des anneaux',
+                  labelStyle: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                  ),
+                  floatingLabelStyle: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                  ),
+                  hintStyle: TextStyle(fontSize: 19),
                   border: OutlineInputBorder(),
                 ),
               );
@@ -1113,10 +1273,23 @@ class _MovieSearchPageState extends State<MovieSearchPage> {
                 keyboardType: TextInputType.number,
                 maxLength: 4,
                 textInputAction: TextInputAction.search,
+                style: const TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w600,
+                ),
                 onSubmitted: (_) => search(),
                 decoration: const InputDecoration(
                   labelText: 'Année',
                   hintText: '2024',
+                  labelStyle: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                  ),
+                  floatingLabelStyle: TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.w700,
+                  ),
+                  hintStyle: TextStyle(fontSize: 19),
                   counterText: '',
                   border: OutlineInputBorder(),
                 ),
@@ -1212,7 +1385,7 @@ class _MovieSearchPageState extends State<MovieSearchPage> {
                             Icon(movie.isSeries ? Icons.tv : Icons.movie),
                             Text(
                               movie.isSeries ? 'Série' : 'Film',
-                              style: const TextStyle(fontSize: 10),
+                              style: const TextStyle(fontSize: 15),
                             ),
                           ],
                         ),
@@ -1232,9 +1405,11 @@ class SaveMovieSheet extends StatefulWidget {
     super.key,
     required this.household,
     required this.movie,
+    this.defaultMediaSourceId,
   });
   final HouseholdSummary household;
   final TmdbMovie movie;
+  final String? defaultMediaSourceId;
 
   @override
   State<SaveMovieSheet> createState() => _SaveMovieSheetState();
@@ -1310,9 +1485,16 @@ class _SaveMovieSheetState extends State<SaveMovieSheet> {
         mediaSources = rows
             .map((row) => MediaSource.fromJson(Map<String, dynamic>.from(row)))
             .toList();
-        if (mediaSourceId != null &&
-            !mediaSources.any((source) => source.id == mediaSourceId)) {
+        final proposedSourceId = mediaSourceId ?? widget.defaultMediaSourceId;
+        final proposedSource = mediaSourceWithId(
+          mediaSources,
+          proposedSourceId,
+        );
+        if (proposedSource == null) {
           mediaSourceId = null;
+        } else {
+          mediaSourceId = proposedSource.id;
+          format = proposedSource.defaultFormat;
         }
         loadingSources = false;
       });
@@ -2441,6 +2623,17 @@ class MediaSource {
   };
 }
 
+MediaSource? mediaSourceWithId(List<MediaSource> sources, String? sourceId) {
+  if (sourceId == null) return null;
+  for (final source in sources) {
+    if (source.id == sourceId) return source;
+  }
+  return null;
+}
+
+String contentAddedMessage(String title) =>
+    '“$title” a été ajouté. Vous pouvez ajouter un autre contenu.';
+
 class MediaSourceDraft {
   const MediaSourceDraft({
     required this.name,
@@ -2593,7 +2786,10 @@ class Header extends StatelessWidget {
               ),
             ],
             const SizedBox(height: 3),
-            Text('$filmCount contenu${filmCount > 1 ? 's' : ''}'),
+            Text(
+              '$filmCount contenu${filmCount > 1 ? 's' : ''}',
+              style: const TextStyle(fontSize: 19, fontWeight: FontWeight.w700),
+            ),
           ],
         ),
       ),
@@ -2835,25 +3031,19 @@ class Logo extends StatelessWidget {
 }
 
 class HeroSection extends StatelessWidget {
-  const HeroSection({
-    super.key,
-    required this.onAdd,
-    required this.onManageSources,
-  });
-  final VoidCallback onAdd;
-  final VoidCallback onManageSources;
+  const HeroSection({super.key});
 
   @override
   Widget build(BuildContext context) {
     final mobile = MediaQuery.sizeOf(context).width < 600;
     return PageWidth(
       child: Padding(
-        padding: EdgeInsets.symmetric(vertical: mobile ? 54 : 82),
+        padding: EdgeInsets.symmetric(vertical: mobile ? 32 : 48),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Kicker('NOTRE CINÉMA, À LA MAISON', withLine: true),
-            const SizedBox(height: 22),
+            const SizedBox(height: 14),
             Text.rich(
               const TextSpan(
                 children: [
@@ -2874,7 +3064,7 @@ class HeroSection extends StatelessWidget {
                 letterSpacing: mobile ? -1.5 : -4,
               ),
             ),
-            const SizedBox(height: 28),
+            const SizedBox(height: 18),
             ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 620),
               child: const Text(
@@ -2885,53 +3075,6 @@ class HeroSection extends StatelessWidget {
                   height: 1.6,
                 ),
               ),
-            ),
-            const SizedBox(height: 32),
-            Wrap(
-              spacing: 12,
-              runSpacing: 12,
-              children: [
-                FilledButton(
-                  onPressed: onAdd,
-                  style: FilledButton.styleFrom(
-                    backgroundColor: ink,
-                    foregroundColor: Colors.white,
-                    padding: EdgeInsets.symmetric(
-                      horizontal: mobile ? 12 : 22,
-                      vertical: 18,
-                    ),
-                    shape: const RoundedRectangleBorder(
-                      borderRadius: BorderRadius.all(Radius.circular(3)),
-                    ),
-                  ),
-                  child: const Wrap(
-                    alignment: WrapAlignment.center,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    spacing: 8,
-                    children: [
-                      Icon(Icons.add, size: 19),
-                      Text('Ajouter un film ou une série'),
-                    ],
-                  ),
-                ),
-                OutlinedButton(
-                  onPressed: onManageSources,
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Theme.of(context).colorScheme.onSurface,
-                    side: BorderSide(
-                      color: Theme.of(context).colorScheme.onSurface,
-                    ),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 22,
-                      vertical: 18,
-                    ),
-                    shape: const RoundedRectangleBorder(
-                      borderRadius: BorderRadius.all(Radius.circular(3)),
-                    ),
-                  ),
-                  child: const Text('Supports de la famille'),
-                ),
-              ],
             ),
           ],
         ),
@@ -3000,11 +3143,13 @@ class FamilyLibrary extends StatefulWidget {
     super.key,
     required this.household,
     required this.onAdd,
+    required this.onManageSources,
     this.onChanged,
   });
 
   final HouseholdSummary household;
   final VoidCallback onAdd;
+  final VoidCallback onManageSources;
   final Future<void> Function()? onChanged;
 
   @override
@@ -3073,9 +3218,11 @@ class _FamilyLibraryState extends State<FamilyLibrary> {
       final details = await loadTmdbDetails([...parsedCopies, ...parsedWishes]);
       if (!mounted) return;
       setState(() {
-        copies = parsedCopies
-            .map((movie) => movie.withDetails(details[movie.tmdbKey]))
-            .toList();
+        copies = groupLibraryMovies(
+          parsedCopies
+              .map((movie) => movie.withDetails(details[movie.tmdbKey]))
+              .toList(),
+        );
         wishes = parsedWishes
             .map((movie) => movie.withDetails(details[movie.tmdbKey]))
             .toList();
@@ -3136,7 +3283,10 @@ class _FamilyLibraryState extends State<FamilyLibrary> {
       final mediaTypeMatches =
           mediaTypeFilter == 'all' || movie.mediaType == mediaTypeFilter;
       final formatMatches =
-          formatFilter == 'all' || movie.format == formatFilter;
+          formatFilter == 'all' ||
+          movie.allPossessions.any(
+            (possession) => possession.format == formatFilter,
+          );
       final genreMatches =
           genreFilter == 'all' || movie.genres.contains(genreFilter);
       final ageMatches = ageFilter == 'all' || movie.ageCategory == ageFilter;
@@ -3238,6 +3388,8 @@ class _FamilyLibraryState extends State<FamilyLibrary> {
             MovieDetailPage(household: widget.household, movie: movie),
       ),
     );
+    await load();
+    await widget.onChanged?.call();
   }
 
   @override
@@ -3299,7 +3451,7 @@ class _FamilyLibraryState extends State<FamilyLibrary> {
                               controller: controller,
                               focusNode: focusNode,
                               style: const TextStyle(
-                                fontSize: 20,
+                                fontSize: 23,
                                 fontWeight: FontWeight.w700,
                               ),
                               onChanged: (value) =>
@@ -3308,6 +3460,15 @@ class _FamilyLibraryState extends State<FamilyLibrary> {
                               decoration: InputDecoration(
                                 labelText: 'Rechercher dans la vidéothèque',
                                 hintText: 'Commencez à saisir le titre…',
+                                labelStyle: const TextStyle(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                                floatingLabelStyle: const TextStyle(
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                                hintStyle: const TextStyle(fontSize: 19),
                                 prefixIcon: const Icon(Icons.search, size: 30),
                                 suffixIcon: titleQuery.isEmpty
                                     ? null
@@ -3388,6 +3549,10 @@ class _FamilyLibraryState extends State<FamilyLibrary> {
                     const SizedBox(height: 18),
                     Text(
                       '${filteredCopies.length} contenu${filteredCopies.length > 1 ? 's' : ''}',
+                      style: const TextStyle(
+                        fontSize: 21,
+                        fontWeight: FontWeight.w800,
+                      ),
                     ),
                     const SizedBox(height: 10),
                     if (filteredCopies.isEmpty)
@@ -3416,10 +3581,48 @@ class _FamilyLibraryState extends State<FamilyLibrary> {
                     )
                   else
                     MovieStrip(movies: wishes, wish: true, onOpen: openMovie),
+                  const SizedBox(height: 28),
+                  LibraryActionButtons(
+                    onAdd: widget.onAdd,
+                    onManageSources: widget.onManageSources,
+                  ),
                 ],
               ),
       ),
     ),
+  );
+}
+
+class LibraryActionButtons extends StatelessWidget {
+  const LibraryActionButtons({
+    super.key,
+    required this.onAdd,
+    required this.onManageSources,
+  });
+
+  final VoidCallback onAdd;
+  final VoidCallback onManageSources;
+
+  @override
+  Widget build(BuildContext context) => Wrap(
+    spacing: 12,
+    runSpacing: 12,
+    children: [
+      FilledButton.icon(
+        onPressed: onAdd,
+        style: FilledButton.styleFrom(
+          backgroundColor: ink,
+          foregroundColor: Colors.white,
+        ),
+        icon: const Icon(Icons.add),
+        label: const Text('Ajouter un film ou une série'),
+      ),
+      OutlinedButton.icon(
+        onPressed: onManageSources,
+        icon: const Icon(Icons.storage_outlined),
+        label: const Text('Supports de la famille'),
+      ),
+    ],
   );
 }
 
@@ -3476,7 +3679,10 @@ class FamilyCatalogPageState extends State<FamilyCatalogPage> {
   List<LibraryMovie> get filteredMovies {
     final result = widget.movies.where((movie) {
       return (mediaType == 'all' || movie.mediaType == mediaType) &&
-          (format == 'all' || movie.format == format) &&
+          (format == 'all' ||
+              movie.allPossessions.any(
+                (possession) => possession.format == format,
+              )) &&
           (genre == 'all' || movie.genres.contains(genre)) &&
           (age == 'all' || movie.ageCategory == age) &&
           (year == 'all' || movie.year == year);
@@ -3516,10 +3722,10 @@ class FamilyCatalogPageState extends State<FamilyCatalogPage> {
             movie.title,
             movie.typeLabel,
             movie.year,
-            movie.member,
-            movie.formatLabel,
-            movie.sourceName,
-            movie.isSeries ? movie.ownershipLabel : 'Film complet',
+            movie.memberSummary,
+            movie.formatSummary,
+            movie.sourceSummary,
+            movie.possessionSummary,
             movie.genres.join(' | '),
             LibraryMovie.ageLabel(movie.ageCategory),
           ],
@@ -3556,9 +3762,9 @@ class FamilyCatalogPageState extends State<FamilyCatalogPage> {
           movie.title,
           movie.typeLabel,
           movie.year,
-          movie.member,
-          movie.formatLabel,
-          movie.isSeries ? movie.ownershipLabel : 'Film complet',
+          movie.memberSummary,
+          movie.formatSummary,
+          movie.possessionSummary,
         ],
     ];
     document.addPage(
@@ -3684,6 +3890,10 @@ class FamilyCatalogPageState extends State<FamilyCatalogPage> {
             children: [
               Text(
                 '${filteredMovies.length} résultat${filteredMovies.length > 1 ? 's' : ''}',
+                style: const TextStyle(
+                  fontSize: 21,
+                  fontWeight: FontWeight.w800,
+                ),
               ),
               FilledButton.icon(
                 onPressed: exporting ? null : exportPdf,
@@ -3742,16 +3952,14 @@ class FamilyCatalogPageState extends State<FamilyCatalogPage> {
                           ),
                           DataCell(Text(movie.typeLabel)),
                           DataCell(Text(movie.year)),
-                          DataCell(Text(movie.member)),
-                          DataCell(Text(movie.formatLabel)),
-                          DataCell(Text(movie.sourceName)),
+                          DataCell(Text(movie.memberSummary)),
+                          DataCell(Text(movie.formatSummary)),
+                          DataCell(Text(movie.sourceSummary)),
                           DataCell(
                             SizedBox(
                               width: 150,
                               child: Text(
-                                movie.isSeries
-                                    ? movie.ownershipLabel
-                                    : 'Film complet',
+                                movie.possessionSummary,
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
                               ),
@@ -3895,7 +4103,15 @@ class LibraryFilters extends StatelessWidget {
   }) => DropdownButtonFormField<String>(
     initialValue: value,
     isExpanded: true,
-    decoration: InputDecoration(labelText: label),
+    style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
+    decoration: InputDecoration(
+      labelText: label,
+      labelStyle: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+      floatingLabelStyle: const TextStyle(
+        fontSize: 20,
+        fontWeight: FontWeight.w700,
+      ),
+    ),
     items: items.entries
         .map(
           (item) => DropdownMenuItem(
@@ -4098,6 +4314,7 @@ class LibraryMovieCard extends StatelessWidget {
               ),
             ),
             if (!wish &&
+                movie.copyCount == 1 &&
                 (canDeleteAny ||
                     movie.ownerId ==
                         Supabase.instance.client.auth.currentUser?.id))
@@ -4115,26 +4332,39 @@ class LibraryMovieCard extends StatelessWidget {
         ),
         const SizedBox(height: 3),
         Text(
-          '${movie.year}${movie.member.isEmpty ? '' : ' · ${movie.member}'}',
+          movie.copyCount > 1
+              ? '${movie.year} · ${movie.copyCount} exemplaires'
+              : '${movie.year}${movie.member.isEmpty ? '' : ' · ${movie.member}'}',
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: const TextStyle(fontSize: 13, color: Color(0xFF77736B)),
+          style: const TextStyle(fontSize: 16, color: Color(0xFF77736B)),
         ),
-        if (!wish && movie.format.isNotEmpty)
+        if (!wish && movie.copyCount > 1)
+          Text(
+            movie.allPossessions
+                .map((possession) => possession.member)
+                .where((member) => member.isNotEmpty)
+                .toSet()
+                .join(' · '),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 16, color: accent),
+          )
+        else if (!wish && movie.format.isNotEmpty)
           Text(
             movie.sourceName.isEmpty
                 ? movie.formatLabel
                 : '${movie.formatLabel} · ${movie.sourceName}',
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontSize: 13, color: accent),
+            style: const TextStyle(fontSize: 16, color: accent),
           ),
         if (!wish && movie.isSeries)
           Text(
             movie.ownershipLabel,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(fontSize: 13, color: Color(0xFF55514A)),
+            style: const TextStyle(fontSize: 16, color: Color(0xFF55514A)),
           ),
       ],
     ),
@@ -4158,6 +4388,7 @@ class LibraryMovie {
     required this.ownershipScope,
     required this.seasonNumbers,
     this.details,
+    this.possessions = const [],
   });
 
   factory LibraryMovie.fromCopy(Map<String, dynamic> row) {
@@ -4219,6 +4450,7 @@ class LibraryMovie {
   final String ownershipScope;
   final List<int> seasonNumbers;
   final TmdbMovieDetails? details;
+  final List<LibraryPossession> possessions;
 
   LibraryMovie withDetails(TmdbMovieDetails? value) => LibraryMovie(
     copyId: copyId,
@@ -4236,7 +4468,53 @@ class LibraryMovie {
     ownershipScope: ownershipScope,
     seasonNumbers: seasonNumbers,
     details: value,
+    possessions: possessions,
   );
+
+  LibraryMovie withPossessions(List<LibraryPossession> value) => LibraryMovie(
+    copyId: copyId,
+    ownerId: ownerId,
+    id: id,
+    tmdbId: tmdbId,
+    mediaType: mediaType,
+    title: title,
+    overview: overview,
+    releaseDate: releaseDate,
+    posterPath: posterPath,
+    member: member,
+    format: format,
+    sourceName: sourceName,
+    ownershipScope: ownershipScope,
+    seasonNumbers: seasonNumbers,
+    details: details,
+    possessions: value,
+  );
+
+  List<LibraryPossession> get allPossessions => possessions.isNotEmpty
+      ? possessions
+      : copyId.isEmpty
+      ? const []
+      : [LibraryPossession.fromMovie(this)];
+  int get copyCount => allPossessions.length;
+  String get memberSummary => allPossessions
+      .map((possession) => possession.member)
+      .where((value) => value.isNotEmpty)
+      .toSet()
+      .join(' | ');
+  String get formatSummary => allPossessions
+      .map((possession) => possession.formatLabel)
+      .toSet()
+      .join(' | ');
+  String get sourceSummary => allPossessions
+      .map((possession) => possession.sourceName)
+      .where((value) => value.isNotEmpty)
+      .toSet()
+      .join(' | ');
+  String get possessionSummary => copyCount > 1
+      ? '$copyCount exemplaires'
+      : isSeries
+      ? ownershipLabel
+      : 'Film complet';
 
   String get year => releaseDate?.split('-').first ?? '';
   bool get isSeries => mediaType == 'tv';
@@ -4282,6 +4560,61 @@ class LibraryMovie {
     'unknown' => 'Non renseigné',
     _ => '$age ans et +',
   };
+}
+
+class LibraryPossession {
+  const LibraryPossession({
+    required this.copyId,
+    required this.ownerId,
+    required this.member,
+    required this.format,
+    required this.sourceName,
+    required this.ownershipScope,
+    required this.seasonNumbers,
+  });
+
+  factory LibraryPossession.fromMovie(LibraryMovie movie) => LibraryPossession(
+    copyId: movie.copyId,
+    ownerId: movie.ownerId,
+    member: movie.member,
+    format: movie.format,
+    sourceName: movie.sourceName,
+    ownershipScope: movie.ownershipScope,
+    seasonNumbers: movie.seasonNumbers,
+  );
+
+  final String copyId;
+  final String ownerId;
+  final String member;
+  final String format;
+  final String sourceName;
+  final String ownershipScope;
+  final List<int> seasonNumbers;
+
+  String get formatLabel => switch (format) {
+    'dvd' => 'DVD',
+    'bluray' => 'Blu-ray',
+    'bluray_4k' => 'Blu-ray 4K',
+    'digital' => 'Numérique',
+    'vhs' => 'VHS',
+    _ => 'Autre',
+  };
+
+  String get locationLabel =>
+      sourceName.isEmpty ? formatLabel : '$formatLabel · $sourceName';
+}
+
+List<LibraryMovie> groupLibraryMovies(List<LibraryMovie> movies) {
+  final grouped = <String, List<LibraryMovie>>{};
+  for (final movie in movies) {
+    grouped.putIfAbsent(movie.id, () => []).add(movie);
+  }
+  return grouped.values.map((group) {
+    final representative = group.first;
+    return representative.withPossessions(
+      group.expand((movie) => movie.allPossessions).toList(),
+    );
+  }).toList();
 }
 
 class TmdbMovieDetails {
@@ -4479,19 +4812,26 @@ class MoviePresentation extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 14),
-                  if (movie.member.isNotEmpty)
+                  if (movie.copyCount > 1)
+                    Text(
+                      '${movie.copyCount} exemplaires dans la famille',
+                      style: const TextStyle(color: Colors.white70),
+                    )
+                  else if (movie.member.isNotEmpty)
                     Text(
                       'Dans la collection de ${movie.member}',
                       style: const TextStyle(color: Colors.white70),
                     ),
-                  if (movie.format.isNotEmpty)
+                  if (movie.copyCount <= 1 && movie.format.isNotEmpty)
                     Text(
                       movie.sourceName.isEmpty
                           ? movie.formatLabel
                           : '${movie.formatLabel} · ${movie.sourceName}',
                       style: const TextStyle(color: Colors.white70),
                     ),
-                  if (movie.isSeries && movie.ownershipLabel.isNotEmpty)
+                  if (movie.copyCount <= 1 &&
+                      movie.isSeries &&
+                      movie.ownershipLabel.isNotEmpty)
                     Text(
                       movie.ownershipLabel,
                       style: const TextStyle(color: Colors.white70),
@@ -4527,7 +4867,7 @@ class MoviePresentation extends StatelessWidget {
           overview.isEmpty
               ? 'Aucun synopsis disponible en français.'
               : overview,
-          style: const TextStyle(fontSize: 16, height: 1.55),
+          style: const TextStyle(fontSize: 19, height: 1.55),
         ),
         if (details?.cast.isNotEmpty == true) ...[
           const SizedBox(height: 38),
@@ -4575,7 +4915,7 @@ class MoviePresentation extends StatelessWidget {
                           actor.character,
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(fontSize: 11),
+                          style: const TextStyle(fontSize: 15),
                         ),
                       ],
                     ),
@@ -4622,7 +4962,7 @@ class MoviePresentation extends StatelessWidget {
     ),
     child: Text(
       label,
-      style: const TextStyle(color: Colors.white, fontSize: 11),
+      style: const TextStyle(color: Colors.white, fontSize: 15),
     ),
   );
 }
@@ -4798,6 +5138,17 @@ class DvdCoverPdf {
   static const double spineWidthMm = 15;
   static const double frontWidthMm = 129;
   static const double coverHeightMm = 183;
+  static final double spineTitleFontSize = 9 * PdfPageFormat.mm;
+
+  static double _spineFontSize(LibraryMovie movie) {
+    final availableWidth =
+        (coverHeightMm - 10) * PdfPageFormat.mm - (movie.year.isEmpty ? 0 : 58);
+    final estimatedWidth =
+        movie.title.characters.length * spineTitleFontSize * .58;
+    return estimatedWidth <= availableWidth
+        ? spineTitleFontSize
+        : spineTitleFontSize * availableWidth / estimatedWidth;
+  }
 
   static Future<Uint8List> build(
     LibraryMovie movie, {
@@ -4962,21 +5313,35 @@ class DvdCoverPdf {
           ),
         ),
         child: pw.Center(
-          child: pw.Transform.rotate(
+          child: pw.Transform.rotateBox(
             angle: math.pi / 2,
+            unconstrained: true,
             child: pw.SizedBox(
-              width: coverHeightMm * PdfPageFormat.mm - 36,
-              child: pw.FittedBox(
-                fit: pw.BoxFit.scaleDown,
-                child: pw.Text(
-                  movie.title.toUpperCase(),
-                  maxLines: 1,
-                  style: pw.TextStyle(
-                    color: PdfColors.white,
-                    fontSize: 12,
-                    fontWeight: pw.FontWeight.bold,
+              width: (coverHeightMm - 10) * PdfPageFormat.mm,
+              height: spineWidthMm * PdfPageFormat.mm,
+              child: pw.Row(
+                crossAxisAlignment: pw.CrossAxisAlignment.center,
+                mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                children: [
+                  pw.Text(
+                    movie.title.toUpperCase(),
+                    maxLines: 1,
+                    style: pw.TextStyle(
+                      color: PdfColors.white,
+                      fontSize: _spineFontSize(movie),
+                      fontWeight: pw.FontWeight.bold,
+                    ),
                   ),
-                ),
+                  if (movie.year.isNotEmpty)
+                    pw.Text(
+                      movie.year,
+                      style: pw.TextStyle(
+                        color: PdfColor.fromHex('#F6A18D'),
+                        fontSize: 15,
+                        fontWeight: pw.FontWeight.bold,
+                      ),
+                    ),
+                ],
               ),
             ),
           ),
@@ -5067,11 +5432,60 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
   bool saving = false;
   bool printingCover = false;
   String? error;
+  late List<LibraryPossession> possessions;
 
   @override
   void initState() {
     super.initState();
+    possessions = [...widget.movie.allPossessions];
     load();
+  }
+
+  Future<void> deletePossession(LibraryPossession possession) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Retirer cet exemplaire ?'),
+        content: Text(
+          'L’exemplaire de ${possession.member} sur ${possession.locationLabel} sera retiré de la collection.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Annuler'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Retirer'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await Supabase.instance.client
+          .from('copies')
+          .delete()
+          .eq('id', possession.copyId);
+      if (!mounted) return;
+      setState(() {
+        possessions.removeWhere((item) => item.copyId == possession.copyId);
+      });
+      if (possessions.isEmpty) {
+        Navigator.of(context).pop();
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('L’exemplaire de ${possession.member} a été retiré.'),
+        ),
+      );
+    } catch (_) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Impossible de retirer cet exemplaire.')),
+      );
+    }
   }
 
   @override
@@ -5217,6 +5631,40 @@ class _MovieDetailPageState extends State<MovieDetailPage> {
                 ),
                 const SizedBox(height: 18),
                 MoviePresentation(movie: widget.movie),
+                if (possessions.isNotEmpty) ...[
+                  const SizedBox(height: 30),
+                  Text(
+                    possessions.length > 1
+                        ? '${possessions.length} exemplaires dans la famille'
+                        : 'Exemplaire dans la famille',
+                    style: const TextStyle(fontFamily: 'Georgia', fontSize: 26),
+                  ),
+                  const SizedBox(height: 12),
+                  for (final possession in possessions)
+                    Card(
+                      child: ListTile(
+                        leading: const Icon(Icons.inventory_2_outlined),
+                        title: Text(possession.member),
+                        subtitle: Text(possession.locationLabel),
+                        trailing:
+                            widget.household.role == 'owner' ||
+                                widget.household.role == 'admin' ||
+                                possession.ownerId ==
+                                    Supabase
+                                        .instance
+                                        .client
+                                        .auth
+                                        .currentUser
+                                        ?.id
+                            ? IconButton(
+                                tooltip: 'Retirer cet exemplaire',
+                                onPressed: () => deletePossession(possession),
+                                icon: const Icon(Icons.delete_outline),
+                              )
+                            : null,
+                      ),
+                    ),
+                ],
                 const Divider(height: 64),
                 const Text(
                   'Votre avis',
@@ -5362,7 +5810,7 @@ class MovieCard extends StatelessWidget {
                 Text(
                   movie.year,
                   style: const TextStyle(
-                    fontSize: 12,
+                    fontSize: 16,
                     color: Color(0xFF77736B),
                   ),
                 ),
@@ -5377,7 +5825,7 @@ class MovieCard extends StatelessWidget {
             ),
             child: Text(
               movie.owner,
-              style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w700),
+              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
             ),
           ),
         ],
@@ -5495,7 +5943,7 @@ class AddMovieCard extends StatelessWidget {
           const Text(
             'Recherche automatique sur Internet',
             textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 12, color: Color(0xFF77736B)),
+            style: TextStyle(fontSize: 16, color: Color(0xFF77736B)),
           ),
         ],
       ),
@@ -5521,7 +5969,7 @@ class Kicker extends StatelessWidget {
           text,
           style: const TextStyle(
             color: accent,
-            fontSize: 11,
+            fontSize: 15,
             letterSpacing: 2.1,
             fontWeight: FontWeight.w900,
           ),
@@ -5610,7 +6058,7 @@ class ProjectStoryPage extends StatelessWidget {
           const SizedBox(height: 20),
           const Text(
             'FamilyFlix est né pour répondre à une question toute simple dans une famille : « Qui possède ce film, où se trouve-t-il, et qu’est-ce qu’on regarde ce soir ? »',
-            style: TextStyle(fontSize: 18, height: 1.6),
+            style: TextStyle(fontSize: 20, height: 1.6),
           ),
           const SizedBox(height: 34),
           const Wrap(
@@ -5850,7 +6298,7 @@ class _LegalSection extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 10),
-        Text(text, style: const TextStyle(fontSize: 16, height: 1.55)),
+        Text(text, style: const TextStyle(fontSize: 19, height: 1.55)),
       ],
     ),
   );

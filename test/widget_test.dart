@@ -13,7 +13,10 @@ void main() {
       find.text('Tous vos films.\nToute votre famille.', findRichText: true),
       findsOneWidget,
     );
-    expect(find.text('Ajouter un film ou une série'), findsOneWidget);
+    expect(
+      find.textContaining('Une vidéothèque simple et privée'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('reste lisible sur un écran de smartphone', (tester) async {
@@ -26,12 +29,55 @@ void main() {
     await tester.pump();
 
     expect(tester.takeException(), isNull);
-    expect(find.text('Ajouter un film ou une série'), findsOneWidget);
+    expect(
+      find.text('Tous vos films.\nToute votre famille.', findRichText: true),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('place les actions après les souhaits', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: Column(
+            children: [
+              const Text('Les souhaits de la famille'),
+              LibraryActionButtons(onAdd: () {}, onManageSources: () {}),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    final wishes = tester.getTopLeft(find.text('Les souhaits de la famille'));
+    final add = tester.getTopLeft(find.text('Ajouter un film ou une série'));
+    expect(add.dy, greaterThan(wishes.dy));
+    expect(find.text('Supports de la famille'), findsOneWidget);
+  });
+
+  testWidgets('agrandit les textes courants, boutons et filtres', (
+    tester,
+  ) async {
+    await tester.pumpWidget(const FamilyFlixApp());
+    final context = tester.element(find.byType(HomePage));
+    final theme = Theme.of(context);
+
+    expect(theme.textTheme.bodyLarge?.fontSize, 19);
+    expect(theme.textTheme.bodyMedium?.fontSize, 18);
+    expect(theme.textTheme.bodySmall?.fontSize, 16);
+    expect(theme.chipTheme.labelStyle?.fontSize, 17);
+    expect(theme.dropdownMenuTheme.textStyle?.fontSize, 18);
+    expect(theme.filledButtonTheme.style?.textStyle?.resolve({})?.fontSize, 18);
   });
 
   testWidgets('présente les API dans les mentions légales', (tester) async {
     await tester.pumpWidget(const MaterialApp(home: LegalNoticesPage()));
 
+    await tester.scrollUntilVisible(
+      find.text('TMDB — métadonnées cinéma et télévision'),
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
     expect(
       find.text('TMDB — métadonnées cinéma et télévision'),
       findsOneWidget,
@@ -117,6 +163,81 @@ void main() {
     expect(find.text('Transférer pour toute la famille'), findsOneWidget);
     expect(find.textContaining('sans être dupliquées'), findsOneWidget);
     expect(tester.takeException(), isNull);
+  });
+
+  test('prépare le support par défaut et la confirmation d’ajout', () {
+    const sources = [
+      MediaSource(
+        id: 'nas',
+        name: 'NAS principal',
+        defaultFormat: 'digital',
+        details: '',
+      ),
+      MediaSource(
+        id: 'dvd',
+        name: 'Étagère DVD',
+        defaultFormat: 'dvd',
+        details: '',
+      ),
+    ];
+
+    expect(mediaSourceWithId(sources, 'nas')?.defaultFormat, 'digital');
+    expect(mediaSourceWithId(sources, 'inconnu'), isNull);
+    expect(
+      contentAddedMessage('Interstellar'),
+      '“Interstellar” a été ajouté. Vous pouvez ajouter un autre contenu.',
+    );
+  });
+
+  test('regroupe les doublons en conservant chaque exemplaire', () {
+    LibraryMovie copy({
+      required String copyId,
+      required String ownerId,
+      required String member,
+      required String format,
+      required String source,
+    }) => LibraryMovie(
+      copyId: copyId,
+      ownerId: ownerId,
+      id: 'yesterday-id',
+      tmdbId: 515042,
+      mediaType: 'movie',
+      title: 'Yesterday',
+      overview: '',
+      releaseDate: '2019-06-27',
+      posterPath: null,
+      member: member,
+      format: format,
+      sourceName: source,
+      ownershipScope: 'movie',
+      seasonNumbers: const [],
+    );
+
+    final grouped = groupLibraryMovies([
+      copy(
+        copyId: 'copy-a',
+        ownerId: 'owner-a',
+        member: 'Alice',
+        format: 'dvd',
+        source: 'Salon',
+      ),
+      copy(
+        copyId: 'copy-b',
+        ownerId: 'owner-b',
+        member: 'Bob',
+        format: 'digital',
+        source: 'NAS',
+      ),
+    ]);
+
+    expect(grouped, hasLength(1));
+    expect(grouped.single.copyCount, 2);
+    expect(grouped.single.memberSummary, 'Alice | Bob');
+    expect(grouped.single.formatSummary, 'DVD | Numérique');
+    expect(
+      grouped.single.allPossessions.map((copy) => copy.copyId),
+      containsAll(['copy-a', 'copy-b']),
+    );
   });
 
   test('l’avatar familial évolue avec la collection', () {
@@ -228,5 +349,30 @@ void main() {
 
     expect(bytes.take(4).toList(), [0x25, 0x50, 0x44, 0x46]);
     expect(bytes.length, greaterThan(1000));
+    expect(
+      DvdCoverPdf.spineTitleFontSize,
+      closeTo(9 * PdfPageFormat.mm, 0.001),
+    );
+
+    final longTitleBytes = await DvdCoverPdf.build(
+      const LibraryMovie(
+        copyId: 'long-copy',
+        ownerId: 'owner',
+        id: 'long-media',
+        tmdbId: 0,
+        mediaType: 'movie',
+        title:
+            'Le Seigneur des anneaux : la Communauté de l’anneau - édition longue',
+        overview: 'Synopsis de test.',
+        releaseDate: '2001-12-19',
+        posterPath: null,
+        member: 'Famille',
+        format: 'dvd',
+        sourceName: 'Salon',
+        ownershipScope: 'movie',
+        seasonNumbers: [],
+      ),
+    );
+    expect(longTitleBytes.take(4).toList(), [0x25, 0x50, 0x44, 0x46]);
   });
 }

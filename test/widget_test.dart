@@ -88,6 +88,37 @@ void main() {
     expect(find.byIcon(Icons.chevron_left), findsOneWidget);
   });
 
+  testWidgets('prépare un transfert groupé sans duplication', (tester) async {
+    const sources = [
+      MediaSource(
+        id: 'nas-old',
+        name: 'Ancien NAS',
+        defaultFormat: 'digital',
+        details: '',
+      ),
+      MediaSource(
+        id: 'nas-new',
+        name: 'Nouveau NAS',
+        defaultFormat: 'digital',
+        details: '',
+      ),
+    ];
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: MediaTransferDialog(sources: sources, canTransferFamily: true),
+        ),
+      ),
+    );
+
+    expect(find.text('Transférer plusieurs contenus'), findsOneWidget);
+    expect(find.text('Support de départ'), findsOneWidget);
+    expect(find.text('Support de destination'), findsOneWidget);
+    expect(find.text('Transférer pour toute la famille'), findsOneWidget);
+    expect(find.textContaining('sans être dupliquées'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
   test('l’avatar familial évolue avec la collection', () {
     expect(const FamilyAvatar(filmCount: 0).stage.label, 'L’aventure commence');
     expect(const FamilyAvatar(filmCount: 10).stage.label, 'Soirée popcorn');

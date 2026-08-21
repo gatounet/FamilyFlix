@@ -31,6 +31,10 @@ Une famille crée son espace privé, puis invite ses membres par e-mail ou avec 
 
 Les informations cinématographiques sont récupérées depuis TMDB. Les informations privées — propriétaires, supports, souhaits et avis — restent enregistrées dans la base Supabase de la famille.
 
+## Documentation
+
+Le [guide d’utilisation de FamilyFlix](docs/GUIDE_UTILISATEUR.md) explique pas à pas la création d’un compte, l’accès à une famille, l’ajout de contenus, la gestion des supports, les transferts groupés sans duplication, les souhaits, les avis et les exports.
+
 ## Une contrainte fondatrice : 0 €
 
 FamilyFlix est né comme un projet familial sans budget. Il privilégie donc les technologies gratuites et ouvertes, sans abonnement pour les membres et sans publicité dans l’application.
@@ -51,7 +55,7 @@ FamilyFlix est né comme un projet familial sans budget. Il privilégie donc les
 - invitation par e-mail ;
 - accès par numéro de famille et mot de passe ;
 - rôles de créateur, administrateur et membre ;
-- promotion, rétrogradation et exclusion des membres par le créateur ;
+- gestion des rôles et des membres par les responsables autorisés de la famille ;
 - avatar familial évoluant avec la taille de la collection.
 
 ### Vidéothèque
@@ -60,6 +64,7 @@ FamilyFlix est né comme un projet familial sans budget. Il privilégie donc les
 - ajout d’un exemplaire physique ou numérique ;
 - possession d’une série complète, d’une saison particulière ou d’une sélection de saisons ;
 - gestion des supports communs : DVD, Blu-ray, Blu-ray 4K, NAS, box, disque dur, étagère, etc. ;
+- transfert groupé d’exemplaires d’un support vers un autre, sans duplication ;
 - indication du propriétaire et de l’emplacement ;
 - suppression d’un exemplaire sans supprimer les autres données du film ;
 - filtres par support, genre et âge conseillé ;

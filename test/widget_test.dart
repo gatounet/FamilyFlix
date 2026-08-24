@@ -70,6 +70,31 @@ void main() {
     expect(theme.filledButtonTheme.style?.textStyle?.resolve({})?.fontSize, 18);
   });
 
+  testWidgets('affiche les statistiques globales du tableau de bord', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      const MaterialApp(
+        home: Scaffold(
+          body: PlatformStatsView(
+            stats: PlatformStats(
+              familyCount: 2,
+              userCount: 6,
+              ownedWorkCount: 270,
+            ),
+          ),
+        ),
+      ),
+    );
+
+    expect(find.text('Familles'), findsOneWidget);
+    expect(find.text('Utilisateurs'), findsOneWidget);
+    expect(find.text('Œuvres possédées'), findsOneWidget);
+    expect(find.text('2'), findsOneWidget);
+    expect(find.text('6'), findsOneWidget);
+    expect(find.text('270'), findsOneWidget);
+  });
+
   testWidgets('présente les API dans les mentions légales', (tester) async {
     await tester.pumpWidget(const MaterialApp(home: LegalNoticesPage()));
 

@@ -52,7 +52,7 @@ void main() {
     final wishes = tester.getTopLeft(find.text('Les souhaits de la famille'));
     final add = tester.getTopLeft(find.text('Ajouter un film ou une série'));
     expect(add.dy, greaterThan(wishes.dy));
-    expect(find.text('Supports de la famille'), findsOneWidget);
+    expect(find.text('Lieux de stockage'), findsOneWidget);
   });
 
   testWidgets('agrandit les textes courants, boutons et filtres', (
@@ -338,6 +338,15 @@ void main() {
     final state = tester.state<FamilyCatalogPageState>(
       find.byType(FamilyCatalogPage),
     );
+    expect(find.text('Imprimer les jaquettes'), findsOneWidget);
+    state.selectMovie(movie, true);
+    await tester.pump();
+    expect(find.text('Imprimer 1 jaquette'), findsOneWidget);
+    expect(state.allFilteredMoviesSelected, isTrue);
+    state.selectAllFiltered(false);
+    await tester.pump();
+    expect(state.selectedMovies, isEmpty);
+
     final bytes = await state.buildPdf(PdfPageFormat.a4.landscape);
     final directory = Directory('tmp/pdfs')..createSync(recursive: true);
     final file = File('${directory.path}/familyflix_catalog_test.pdf');
@@ -374,6 +383,31 @@ void main() {
 
     expect(bytes.take(4).toList(), [0x25, 0x50, 0x44, 0x46]);
     expect(bytes.length, greaterThan(1000));
+
+    const secondMovie = LibraryMovie(
+      copyId: 'second-copy',
+      ownerId: 'owner',
+      id: 'second-media',
+      tmdbId: 550,
+      mediaType: 'movie',
+      title: 'Fight Club',
+      overview: 'Synopsis de la deuxième jaquette.',
+      releaseDate: '1999-10-15',
+      posterPath: null,
+      member: 'Famille',
+      format: 'dvd',
+      sourceName: 'Salon',
+      ownershipScope: 'movie',
+      seasonNumbers: [],
+    );
+    final batchBytes = await DvdCoverPdf.buildMany([movie, secondMovie]);
+    final batchFile = File(
+      '${directory.path}/familyflix_dvd_cover_batch_test.pdf',
+    );
+    batchFile.writeAsBytesSync(batchBytes);
+    expect(batchBytes.take(4).toList(), [0x25, 0x50, 0x44, 0x46]);
+    expect(batchBytes.length, greaterThan(bytes.length));
+
     expect(
       DvdCoverPdf.spineTitleFontSize,
       closeTo(9 * PdfPageFormat.mm, 0.001),

@@ -156,6 +156,7 @@ class FamilyFlixApp extends StatelessWidget {
         dataTextStyle: TextStyle(fontSize: 17),
         headingTextStyle: TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
         dataRowMinHeight: 58,
+        dataRowMaxHeight: 72,
         headingRowHeight: 60,
       ),
       iconButtonTheme: const IconButtonThemeData(
@@ -1232,7 +1233,7 @@ class _MovieSearchPageState extends State<MovieSearchPage> {
               initialValue: defaultMediaSourceId,
               isExpanded: true,
               decoration: const InputDecoration(
-                labelText: 'Support proposé pour les prochains ajouts',
+                labelText: 'Lieu de stockage proposé pour les prochains ajouts',
                 helperText:
                     'Il sera présélectionné, mais restera modifiable avant validation.',
                 prefixIcon: Icon(Icons.storage_outlined),
@@ -1240,7 +1241,7 @@ class _MovieSearchPageState extends State<MovieSearchPage> {
               items: [
                 const DropdownMenuItem<String?>(
                   value: null,
-                  child: Text('Aucun support par défaut'),
+                  child: Text('Aucun lieu de stockage par défaut'),
                 ),
                 ...mediaSources.map(
                   (source) => DropdownMenuItem<String?>(
@@ -1697,13 +1698,13 @@ class _SaveMovieSheetState extends State<SaveMovieSheet> {
               DropdownButtonFormField<String?>(
                 initialValue: mediaSourceId,
                 decoration: const InputDecoration(
-                  labelText: 'Support de la famille (facultatif)',
+                  labelText: 'Lieu de stockage (facultatif)',
                   border: OutlineInputBorder(),
                 ),
                 items: [
                   const DropdownMenuItem<String?>(
                     value: null,
-                    child: Text('Aucun support personnalisé'),
+                    child: Text('Aucun lieu de stockage personnalisé'),
                   ),
                   ...mediaSources.map(
                     (source) => DropdownMenuItem<String?>(
@@ -1731,8 +1732,8 @@ class _SaveMovieSheetState extends State<SaveMovieSheet> {
                 icon: const Icon(Icons.settings_outlined),
                 label: Text(
                   widget.household.role == 'owner'
-                      ? 'Gérer les supports de la famille'
-                      : 'Voir les supports de la famille',
+                      ? 'Gérer les lieux de stockage'
+                      : 'Voir les lieux de stockage',
                 ),
               ),
             ),
@@ -2174,7 +2175,7 @@ class _MediaSourcesPageState extends State<MediaSourcesPage> {
     } catch (_) {
       if (!mounted) return;
       setState(() {
-        error = 'Impossible de charger les supports de la famille.';
+        error = 'Impossible de charger les lieux de stockage.';
         loading = false;
       });
     }
@@ -2200,8 +2201,8 @@ class _MediaSourcesPageState extends State<MediaSourcesPage> {
     } on PostgrestException catch (exception) {
       if (!mounted) return;
       final message = exception.code == '23505'
-          ? 'Ce support existe déjà dans la famille.'
-          : 'Impossible d’ajouter ce support.';
+          ? 'Ce lieu de stockage existe déjà dans la famille.'
+          : 'Impossible d’ajouter ce lieu de stockage.';
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(message)));
@@ -2213,7 +2214,7 @@ class _MediaSourcesPageState extends State<MediaSourcesPage> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Supprimer ce support ?'),
+        title: const Text('Supprimer ce lieu de stockage ?'),
         content: Text(
           '“${source.name}” sera retiré de la famille. Les films resteront dans la vidéothèque.',
         ),
@@ -2312,7 +2313,7 @@ class _MediaSourcesPageState extends State<MediaSourcesPage> {
   @override
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
-      title: const Text('Supports de la famille'),
+      title: const Text('Lieux de stockage'),
       backgroundColor: Theme.of(context).colorScheme.surface,
       actions: [
         IconButton(
@@ -2340,7 +2341,7 @@ class _MediaSourcesPageState extends State<MediaSourcesPage> {
               child: Text(
                 widget.household.role == 'owner'
                     ? 'Ajoutez les emplacements de la famille : NAS, box, disque dur, étagère…'
-                    : 'Le créateur de la famille n’a pas encore ajouté de support.',
+                    : 'Le créateur de la famille n’a pas encore ajouté de lieu de stockage.',
                 textAlign: TextAlign.center,
               ),
             )
@@ -2531,7 +2532,7 @@ class _MediaSourceDialogState extends State<MediaSourceDialog> {
 
   @override
   Widget build(BuildContext context) => AlertDialog(
-    title: const Text('Ajouter un support'),
+    title: const Text('Ajouter un lieu de stockage'),
     content: SizedBox(
       width: 440,
       child: Column(
@@ -3191,6 +3192,7 @@ class _FamilyLibraryState extends State<FamilyLibrary> {
   List<LibraryMovie> wishes = const [];
   String mediaTypeFilter = 'all';
   String formatFilter = 'all';
+  String sourceFilter = 'all';
   String genreFilter = 'all';
   String ageFilter = 'all';
   String yearFilter = 'all';
@@ -3315,6 +3317,11 @@ class _FamilyLibraryState extends State<FamilyLibrary> {
           movie.allPossessions.any(
             (possession) => possession.format == formatFilter,
           );
+      final sourceMatches =
+          sourceFilter == 'all' ||
+          movie.allPossessions.any(
+            (possession) => possession.sourceName == sourceFilter,
+          );
       final genreMatches =
           genreFilter == 'all' || movie.genres.contains(genreFilter);
       final ageMatches = ageFilter == 'all' || movie.ageCategory == ageFilter;
@@ -3322,6 +3329,7 @@ class _FamilyLibraryState extends State<FamilyLibrary> {
       return titleMatches &&
           mediaTypeMatches &&
           formatMatches &&
+          sourceMatches &&
           genreMatches &&
           ageMatches &&
           yearMatches;
@@ -3340,6 +3348,15 @@ class _FamilyLibraryState extends State<FamilyLibrary> {
 
   List<String> get availableGenres =>
       copies.expand((movie) => movie.genres).toSet().toList()..sort();
+
+  List<String> get availableSources =>
+      copies
+          .expand((movie) => movie.allPossessions)
+          .map((possession) => possession.sourceName)
+          .where((source) => source.isNotEmpty)
+          .toSet()
+          .toList()
+        ..sort();
 
   List<String> get availableAges =>
       copies
@@ -3548,17 +3565,21 @@ class _FamilyLibraryState extends State<FamilyLibrary> {
                     LibraryFilters(
                       mediaType: mediaTypeFilter,
                       format: formatFilter,
+                      source: sourceFilter,
                       genre: genreFilter,
                       age: ageFilter,
                       year: yearFilter,
                       sort: sortOrder,
                       genres: availableGenres,
+                      sources: availableSources,
                       ages: availableAges,
                       years: availableYears,
                       onMediaTypeChanged: (value) =>
                           setState(() => mediaTypeFilter = value),
                       onFormatChanged: (value) =>
                           setState(() => formatFilter = value),
+                      onSourceChanged: (value) =>
+                          setState(() => sourceFilter = value),
                       onGenreChanged: (value) =>
                           setState(() => genreFilter = value),
                       onAgeChanged: (value) =>
@@ -3648,7 +3669,7 @@ class LibraryActionButtons extends StatelessWidget {
       OutlinedButton.icon(
         onPressed: onManageSources,
         icon: const Icon(Icons.storage_outlined),
-        label: const Text('Supports de la famille'),
+        label: const Text('Lieux de stockage'),
       ),
     ],
   );
@@ -3834,11 +3855,14 @@ class FamilyCatalogPage extends StatefulWidget {
 class FamilyCatalogPageState extends State<FamilyCatalogPage> {
   String mediaType = 'all';
   String format = 'all';
+  String source = 'all';
   String genre = 'all';
   String age = 'all';
   String year = 'all';
   String sort = 'title';
   bool exporting = false;
+  bool printingCovers = false;
+  final Set<String> selectedMovieIds = {};
 
   static String formatPrintDate(DateTime date) {
     final localDate = date.toLocal();
@@ -3849,6 +3873,14 @@ class FamilyCatalogPageState extends State<FamilyCatalogPage> {
 
   List<String> get genres =>
       widget.movies.expand((movie) => movie.genres).toSet().toList()..sort();
+  List<String> get sources =>
+      widget.movies
+          .expand((movie) => movie.allPossessions)
+          .map((possession) => possession.sourceName)
+          .where((value) => value.isNotEmpty)
+          .toSet()
+          .toList()
+        ..sort();
   List<String> get ages =>
       widget.movies
           .map((movie) => movie.ageCategory)
@@ -3874,6 +3906,10 @@ class FamilyCatalogPageState extends State<FamilyCatalogPage> {
               movie.allPossessions.any(
                 (possession) => possession.format == format,
               )) &&
+          (source == 'all' ||
+              movie.allPossessions.any(
+                (possession) => possession.sourceName == source,
+              )) &&
           (genre == 'all' || movie.genres.contains(genre)) &&
           (age == 'all' || movie.ageCategory == age) &&
           (year == 'all' || movie.year == year);
@@ -3889,6 +3925,58 @@ class FamilyCatalogPageState extends State<FamilyCatalogPage> {
         result.sort((a, b) => a.ageSortValue.compareTo(b.ageSortValue));
     }
     return result;
+  }
+
+  List<LibraryMovie> get selectedMovies => filteredMovies
+      .where((movie) => selectedMovieIds.contains(movie.id))
+      .toList();
+
+  bool get allFilteredMoviesSelected =>
+      filteredMovies.isNotEmpty &&
+      filteredMovies.every((movie) => selectedMovieIds.contains(movie.id));
+
+  void selectAllFiltered(bool? selected) {
+    setState(() {
+      final ids = filteredMovies.map((movie) => movie.id);
+      if (selected == true) {
+        selectedMovieIds.addAll(ids);
+      } else {
+        selectedMovieIds.removeAll(ids);
+      }
+    });
+  }
+
+  void selectMovie(LibraryMovie movie, bool? selected) {
+    setState(() {
+      if (selected == true) {
+        selectedMovieIds.add(movie.id);
+      } else {
+        selectedMovieIds.remove(movie.id);
+      }
+    });
+  }
+
+  Future<void> printSelectedCovers() async {
+    final movies = selectedMovies;
+    if (movies.isEmpty) return;
+    setState(() => printingCovers = true);
+    try {
+      final posters = <String, pw.ImageProvider>{};
+      for (final movie in movies) {
+        if (movie.printPosterUrl == null) continue;
+        try {
+          posters[movie.id] = await networkImage(movie.printPosterUrl!);
+        } catch (_) {
+          // Le lot reste imprimable si une affiche est indisponible.
+        }
+      }
+      await Printing.layoutPdf(
+        name: 'jaquettes-dvd-familyflix.pdf',
+        onLayout: (_) => DvdCoverPdf.buildMany(movies, posters: posters),
+      );
+    } finally {
+      if (mounted) setState(() => printingCovers = false);
+    }
   }
 
   String csvCell(String value) => '"${value.replaceAll('"', '""')}"';
@@ -4059,15 +4147,18 @@ class FamilyCatalogPageState extends State<FamilyCatalogPage> {
           LibraryFilters(
             mediaType: mediaType,
             format: format,
+            source: source,
             genre: genre,
             age: age,
             year: year,
             sort: sort,
             genres: genres,
+            sources: sources,
             ages: ages,
             years: years,
             onMediaTypeChanged: (value) => setState(() => mediaType = value),
             onFormatChanged: (value) => setState(() => format = value),
+            onSourceChanged: (value) => setState(() => source = value),
             onGenreChanged: (value) => setState(() => genre = value),
             onAgeChanged: (value) => setState(() => age = value),
             onYearChanged: (value) => setState(() => year = value),
@@ -4096,6 +4187,39 @@ class FamilyCatalogPageState extends State<FamilyCatalogPage> {
                 icon: const Icon(Icons.table_view_outlined),
                 label: const Text('Exporter en CSV'),
               ),
+              OutlinedButton.icon(
+                onPressed: filteredMovies.isEmpty
+                    ? null
+                    : () => selectAllFiltered(!allFilteredMoviesSelected),
+                icon: Icon(
+                  allFilteredMoviesSelected
+                      ? Icons.deselect_outlined
+                      : Icons.select_all_outlined,
+                ),
+                label: Text(
+                  allFilteredMoviesSelected
+                      ? 'Désélectionner les résultats'
+                      : 'Sélectionner les résultats',
+                ),
+              ),
+              FilledButton.icon(
+                onPressed: selectedMovies.isEmpty || printingCovers
+                    ? null
+                    : printSelectedCovers,
+                icon: printingCovers
+                    ? const SizedBox.square(
+                        dimension: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.print_outlined),
+                label: Text(
+                  printingCovers
+                      ? 'Préparation des jaquettes…'
+                      : selectedMovies.isEmpty
+                      ? 'Imprimer les jaquettes'
+                      : 'Imprimer ${selectedMovies.length} jaquette${selectedMovies.length > 1 ? 's' : ''}',
+                ),
+              ),
               if (exporting)
                 const SizedBox.square(
                   dimension: 22,
@@ -4112,6 +4236,7 @@ class FamilyCatalogPageState extends State<FamilyCatalogPage> {
               child: SingleChildScrollView(
                 scrollDirection: Axis.horizontal,
                 child: DataTable(
+                  onSelectAll: selectAllFiltered,
                   horizontalMargin: 16,
                   columnSpacing: 24,
                   columns: const [
@@ -4130,6 +4255,9 @@ class FamilyCatalogPageState extends State<FamilyCatalogPage> {
                   rows: [
                     for (final movie in filteredMovies)
                       DataRow(
+                        selected: selectedMovieIds.contains(movie.id),
+                        onSelectChanged: (selected) =>
+                            selectMovie(movie, selected),
                         cells: [
                           DataCell(
                             SizedBox(
@@ -4185,15 +4313,18 @@ class LibraryFilters extends StatelessWidget {
     super.key,
     required this.mediaType,
     required this.format,
+    required this.source,
     required this.genre,
     required this.age,
     required this.year,
     required this.sort,
     required this.genres,
+    required this.sources,
     required this.ages,
     required this.years,
     required this.onMediaTypeChanged,
     required this.onFormatChanged,
+    required this.onSourceChanged,
     required this.onGenreChanged,
     required this.onAgeChanged,
     required this.onYearChanged,
@@ -4202,15 +4333,18 @@ class LibraryFilters extends StatelessWidget {
 
   final String mediaType;
   final String format;
+  final String source;
   final String genre;
   final String age;
   final String year;
   final String sort;
   final List<String> genres;
+  final List<String> sources;
   final List<String> ages;
   final List<String> years;
   final ValueChanged<String> onMediaTypeChanged;
   final ValueChanged<String> onFormatChanged;
+  final ValueChanged<String> onSourceChanged;
   final ValueChanged<String> onGenreChanged;
   final ValueChanged<String> onAgeChanged;
   final ValueChanged<String> onYearChanged;
@@ -4242,6 +4376,12 @@ class LibraryFilters extends StatelessWidget {
             'other': 'Autre',
           },
           onChanged: onFormatChanged,
+        ),
+        _filter(
+          label: 'Lieu de stockage',
+          value: source,
+          items: {'all': 'Tous', for (final item in sources) item: item},
+          onChanged: onSourceChanged,
         ),
         _filter(
           label: 'Genre',
@@ -5344,7 +5484,21 @@ class DvdCoverPdf {
   static Future<Uint8List> build(
     LibraryMovie movie, {
     pw.ImageProvider? poster,
+  }) => buildMany([
+    movie,
+  ], posters: poster == null ? const {} : {movie.id: poster});
+
+  static Future<Uint8List> buildMany(
+    List<LibraryMovie> movies, {
+    Map<String, pw.ImageProvider> posters = const {},
   }) async {
+    if (movies.isEmpty) {
+      throw ArgumentError.value(
+        movies,
+        'movies',
+        'Le lot ne peut pas être vide.',
+      );
+    }
     final regularFont = pw.Font.ttf(
       await rootBundle.load('assets/fonts/Roboto-Regular.ttf'),
     );
@@ -5352,10 +5506,22 @@ class DvdCoverPdf {
       await rootBundle.load('assets/fonts/Roboto-Medium.ttf'),
     );
     final document = pw.Document(
-      title: 'Jaquette DVD - ${movie.title}',
+      title: movies.length == 1
+          ? 'Jaquette DVD - ${movies.first.title}'
+          : 'Jaquettes DVD FamilyFlix',
       author: 'FamilyFlix',
       theme: pw.ThemeData.withFont(base: regularFont, bold: boldFont),
     );
+    for (final movie in movies) {
+      document.addPage(_page(movie, poster: posters[movie.id]));
+    }
+    return document.save();
+  }
+
+  static pw.Page _page(
+    LibraryMovie movie, {
+    required pw.ImageProvider? poster,
+  }) {
     const pageFormat = PdfPageFormat.a4;
     final mm = PdfPageFormat.mm;
     final coverWidth = (backWidthMm + spineWidthMm + frontWidthMm) * mm;
@@ -5370,58 +5536,51 @@ class DvdCoverPdf {
       ...movie.genres.take(3),
     ].join(' • ');
 
-    document.addPage(
-      pw.Page(
-        pageFormat: pageFormat.landscape,
-        margin: pw.EdgeInsets.zero,
-        build: (_) => pw.Stack(
-          children: [
-            pw.Center(
-              child: pw.Container(
-                width: coverWidth,
-                height: coverHeight,
-                decoration: pw.BoxDecoration(
-                  border: pw.Border.all(
-                    color: PdfColor.fromHex('#171715'),
-                    width: .7,
+    return pw.Page(
+      pageFormat: pageFormat.landscape,
+      margin: pw.EdgeInsets.zero,
+      build: (_) => pw.Stack(
+        children: [
+          pw.Center(
+            child: pw.Container(
+              width: coverWidth,
+              height: coverHeight,
+              decoration: pw.BoxDecoration(
+                border: pw.Border.all(
+                  color: PdfColor.fromHex('#171715'),
+                  width: .7,
+                ),
+              ),
+              child: pw.Row(
+                children: [
+                  _backPanel(
+                    movie,
+                    overview: overview,
+                    metadata: metadata,
+                    width: backWidthMm * mm,
                   ),
-                ),
-                child: pw.Row(
-                  children: [
-                    _backPanel(
-                      movie,
-                      overview: overview,
-                      metadata: metadata,
-                      width: backWidthMm * mm,
-                    ),
-                    _spine(movie, width: spineWidthMm * mm),
-                    _frontPanel(
-                      movie,
-                      poster: poster,
-                      width: frontWidthMm * mm,
-                    ),
-                  ],
-                ),
+                  _spine(movie, width: spineWidthMm * mm),
+                  _frontPanel(movie, poster: poster, width: frontWidthMm * mm),
+                ],
               ),
             ),
-            pw.Positioned(
-              left: 0,
-              right: 0,
-              bottom: 3.5 * mm,
-              child: pw.Text(
-                'Imprimer en taille réelle (100 %) - découper le contour - plier aux deux lignes de la tranche',
-                textAlign: pw.TextAlign.center,
-                style: pw.TextStyle(
-                  fontSize: 7,
-                  color: PdfColor.fromHex('#5D5A53'),
-                ),
+          ),
+          pw.Positioned(
+            left: 0,
+            right: 0,
+            bottom: 3.5 * mm,
+            child: pw.Text(
+              'Imprimer en taille réelle (100 %) - découper le contour - plier aux deux lignes de la tranche',
+              textAlign: pw.TextAlign.center,
+              style: pw.TextStyle(
+                fontSize: 7,
+                color: PdfColor.fromHex('#5D5A53'),
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
-    return document.save();
   }
 
   static pw.Widget _backPanel(

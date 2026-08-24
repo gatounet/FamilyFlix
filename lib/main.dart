@@ -1010,6 +1010,17 @@ class HomePage extends StatelessWidget {
                   household?.role == 'owner' || household?.role == 'admin'
                   ? () => openFamilyAccess(context)
                   : null,
+              onPlatformDashboard:
+                  supabaseReady &&
+                      Supabase.instance.client.auth.currentUser?.email
+                              ?.toLowerCase() ==
+                          'starz.gatounet@gmail.com'
+                  ? () => Navigator.of(context).push<void>(
+                      MaterialPageRoute(
+                        builder: (_) => const PlatformDashboardPage(),
+                      ),
+                    )
+                  : null,
             ),
           ),
           const SliverToBoxAdapter(child: HeroSection()),
@@ -2735,6 +2746,7 @@ class Header extends StatelessWidget {
     this.familyName,
     this.filmCount = 0,
     this.onManageFamily,
+    this.onPlatformDashboard,
   });
   final VoidCallback onLogin;
   final bool authenticated;
@@ -2742,6 +2754,7 @@ class Header extends StatelessWidget {
   final String? familyName;
   final int filmCount;
   final VoidCallback? onManageFamily;
+  final VoidCallback? onPlatformDashboard;
 
   void _selectAccountAction(BuildContext context, String action) {
     if (action == 'logout') {
@@ -2750,6 +2763,10 @@ class Header extends StatelessWidget {
     }
     if (action == 'family') {
       onManageFamily?.call();
+      return;
+    }
+    if (action == 'platform-dashboard') {
+      onPlatformDashboard?.call();
       return;
     }
     final selectedTheme = switch (action) {
@@ -2802,6 +2819,17 @@ class Header extends StatelessWidget {
           contentPadding: EdgeInsets.zero,
           leading: Icon(Icons.manage_accounts_outlined),
           title: Text('Gérer la famille'),
+        ),
+      ),
+      const PopupMenuDivider(),
+    ],
+    if (onPlatformDashboard != null) ...[
+      const PopupMenuItem(
+        value: 'platform-dashboard',
+        child: ListTile(
+          contentPadding: EdgeInsets.zero,
+          leading: Icon(Icons.analytics_outlined),
+          title: Text('Tableau de bord'),
         ),
       ),
       const PopupMenuDivider(),
@@ -3624,6 +3652,169 @@ class LibraryActionButtons extends StatelessWidget {
       ),
     ],
   );
+}
+
+class PlatformDashboardPage extends StatefulWidget {
+  const PlatformDashboardPage({super.key});
+
+  @override
+  State<PlatformDashboardPage> createState() => _PlatformDashboardPageState();
+}
+
+class _PlatformDashboardPageState extends State<PlatformDashboardPage> {
+  PlatformStats? stats;
+  String? error;
+
+  @override
+  void initState() {
+    super.initState();
+    load();
+  }
+
+  Future<void> load() async {
+    setState(() => error = null);
+    try {
+      final response = await Supabase.instance.client.rpc('get_platform_stats');
+      final rows = response as List;
+      if (!mounted) return;
+      setState(() {
+        stats = PlatformStats.fromJson(
+          Map<String, dynamic>.from(rows.single as Map),
+        );
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        error = 'Impossible de charger les statistiques de la plateforme.';
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    appBar: AppBar(title: const Text('Tableau de bord FamilyFlix')),
+    body: PageWidth(
+      child: stats == null && error == null
+          ? const Center(child: CircularProgressIndicator())
+          : error != null
+          ? Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(error!, textAlign: TextAlign.center),
+                  const SizedBox(height: 16),
+                  FilledButton.icon(
+                    onPressed: load,
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('Réessayer'),
+                  ),
+                ],
+              ),
+            )
+          : PlatformStatsView(stats: stats!),
+    ),
+  );
+}
+
+class PlatformStatsView extends StatelessWidget {
+  const PlatformStatsView({super.key, required this.stats});
+
+  final PlatformStats stats;
+
+  @override
+  Widget build(BuildContext context) => ListView(
+    padding: const EdgeInsets.symmetric(vertical: 32),
+    children: [
+      const Kicker('ADMINISTRATION', withLine: true),
+      const SizedBox(height: 12),
+      const Text(
+        'Vue d’ensemble de la plateforme',
+        style: TextStyle(fontFamily: 'Georgia', fontSize: 36),
+      ),
+      const SizedBox(height: 10),
+      const Text('Ces compteurs couvrent toutes les familles FamilyFlix.'),
+      const SizedBox(height: 28),
+      Wrap(
+        spacing: 18,
+        runSpacing: 18,
+        children: [
+          PlatformStatCard(
+            icon: Icons.family_restroom_outlined,
+            value: stats.familyCount,
+            label: 'Familles',
+          ),
+          PlatformStatCard(
+            icon: Icons.people_alt_outlined,
+            value: stats.userCount,
+            label: 'Utilisateurs',
+          ),
+          PlatformStatCard(
+            icon: Icons.movie_filter_outlined,
+            value: stats.ownedWorkCount,
+            label: 'Œuvres possédées',
+          ),
+        ],
+      ),
+    ],
+  );
+}
+
+class PlatformStatCard extends StatelessWidget {
+  const PlatformStatCard({
+    super.key,
+    required this.icon,
+    required this.value,
+    required this.label,
+  });
+
+  final IconData icon;
+  final int value;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    width: 250,
+    child: Card(
+      child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, color: accent, size: 36),
+            const SizedBox(height: 24),
+            Text(
+              '$value',
+              style: const TextStyle(
+                fontFamily: 'Georgia',
+                fontSize: 46,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(label, style: Theme.of(context).textTheme.bodyLarge),
+          ],
+        ),
+      ),
+    ),
+  );
+}
+
+class PlatformStats {
+  const PlatformStats({
+    required this.familyCount,
+    required this.userCount,
+    required this.ownedWorkCount,
+  });
+
+  factory PlatformStats.fromJson(Map<String, dynamic> json) => PlatformStats(
+    familyCount: (json['family_count'] as num).toInt(),
+    userCount: (json['user_count'] as num).toInt(),
+    ownedWorkCount: (json['owned_work_count'] as num).toInt(),
+  );
+
+  final int familyCount;
+  final int userCount;
+  final int ownedWorkCount;
 }
 
 class FamilyCatalogPage extends StatefulWidget {
